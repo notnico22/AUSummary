@@ -1,8 +1,15 @@
 # AUSUMMARY 📊
 
+# CURRENTLY IN BETA
+
 **Advanced Statistics Logger and Viewer for Among Us (Town of Us Mod)**
 
 AUSUMMARY is a comprehensive BepInEx mod and statistics viewer that automatically tracks, records, and analyzes your Among Us games. Built specifically for Town of Us modded lobbies, it captures detailed game data including roles, kills, tasks, and much more, then presents it through a beautiful, feature-rich desktop viewer application.
+
+**Video of AUSummary**
+
+https://github.com/user-attachments/assets/ff876d20-7d23-466b-9d2c-b117b85408e6
+
 
 ---
 
