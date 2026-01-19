@@ -25,7 +25,7 @@ https://github.com/user-attachments/assets/ff876d20-7d23-466b-9d2c-b117b85408e6
 
 ## 📦 Components
 
-### 1. AUSUMMARY.DLL (BepInEx Mod)
+### 1. AUSummary (BepInEx Mod)
 The game mod that runs inside Among Us and captures all game data.
 
 **What It Tracks:**
