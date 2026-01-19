@@ -194,7 +194,6 @@ A modern WPF desktop application for viewing and analyzing your game statistics.
 
 3. **Verify Installation**:
    - Launch Among Us
-   - Check BepInEx console for "AUSUMMARY loaded successfully" message
 
 ### Viewer Installation
 
