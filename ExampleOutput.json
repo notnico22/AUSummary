@@ -1,0 +1,47 @@
+{
+  "matchId": "abc12345-6789-def0-1234-56789abcdef0",
+  "timestamp": "2025-01-19T15:30:45",
+  "metadata": {
+    "mapName": "The Skeld",
+    "gameMode": "Town of Us",
+    "playerCount": 10,
+    "gameDuration": "00:08:35",
+    "totalMeetings": 4,
+    "totalTasks": 80,
+    "completedTasks": 72,
+    "modVersion": "1.0.0"
+  },
+  "players": [
+    {
+      "playerName": "RedPlayer",
+      "playerId": 0,
+      "colorName": "Red",
+      "role": "Sheriff",
+      "team": "Crewmate",
+      "isAlive": true,
+      "tasksCompleted": 10,
+      "totalTasks": 10
+    },
+    {
+      "playerName": "BluePlayer",
+      "playerId": 1,
+      "colorName": "Blue",
+      "role": "Impostor",
+      "team": "Impostor",
+      "isAlive": false,
+      "deathCause": "Ejected",
+      "timeOfDeath": 420.5,
+      "wasEjected": true
+    }
+  ],
+  "winner": {
+    "winningTeam": "Crewmate",
+    "winCondition": "Voted Out All Impostors",
+    "winners": ["RedPlayer", "GreenPlayer", "PinkPlayer"]
+  },
+  "statistics": {
+    "totalKills": 2,
+    "totalEjections": 2,
+    "taskCompletionRate": 0.9
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "Id": "ausummary.mod",
+  "Name": "AUSUMMARY - Game Logger",
+  "Author": "AU Modding Community",
+  "Version": "1.0.0",
+  "Description": "Automatically tracks and logs Among Us game statistics. Saves match summaries including player roles, deaths, meetings, and win conditions to JSON files for analysis.",
+  "Repository": "",
+  "Features": [
+    "Automatic game tracking",
+    "Player role detection",
+    "Death recording with causes",
+    "Meeting and event logging",
+    "Task completion tracking",
+    "Win condition detection",
+    "JSON export to Documents folder",
+    "Companion viewer application"
+  ],
+  "RequiresMiraAPI": true,
+  "InformationalOnly": true,
+  "GameModes": ["Classic", "Hide and Seek"],
+  "CompatibleWith": ["Town of Us: Mira", "Vanilla Among Us"]
+}

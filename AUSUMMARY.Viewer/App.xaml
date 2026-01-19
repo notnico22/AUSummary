@@ -1,0 +1,12 @@
+<Application x:Class="AUSUMMARY.Viewer.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Application.Resources>
+        <!-- Application Resources -->
+        <SolidColorBrush x:Key="PrimaryBrush" Color="#2B2D42"/>
+        <SolidColorBrush x:Key="SecondaryBrush" Color="#8D99AE"/>
+        <SolidColorBrush x:Key="AccentBrush" Color="#EF233C"/>
+        <SolidColorBrush x:Key="BackgroundBrush" Color="#EDF2F4"/>
+        <SolidColorBrush x:Key="TextBrush" Color="#2B2D42"/>
+    </Application.Resources>
+</Application>

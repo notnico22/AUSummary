@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <Description>Among Us Game Summary Logger - DLL Mod</Description>
+    <Version>1.0.0</Version>
+    <Authors>AU Modding Community</Authors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="AllOfUs.MiraAPI" Version="0.3.6" />
+    <PackageReference Include="Reactor" Version="2.5.0-ci.371" />
+    <PackageReference Include="BepInEx.Unity.IL2CPP" Version="6.0.0-be.735" Private="false" ExcludeAssets="runtime;native" />
+    <PackageReference Include="AmongUs.GameLibs.Steam" Version="2025.10.14" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.AutoPlugin" Version="1.1.0" PrivateAssets="all" />
+    <PackageReference Include="BepInEx.IL2CPP.MSBuild" Version="2.1.0-rc.1" PrivateAssets="all" ExcludeAssets="runtime" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AUSUMMARY.Shared\AUSUMMARY.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="modinfo.json" />
+  </ItemGroup>
+</Project>

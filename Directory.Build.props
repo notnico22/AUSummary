@@ -1,0 +1,15 @@
+<Project>
+  <PropertyGroup>
+    <Authors>AU Modding Community</Authors>
+    <Company>AU Modding Community</Company>
+    <Copyright>Copyright © 2025</Copyright>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryType>git</RepositoryType>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
