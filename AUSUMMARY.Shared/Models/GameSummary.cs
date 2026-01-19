@@ -145,9 +145,7 @@ public class WinnerInfo
     public string? Mvp { get; set; }
 }
 
-/// <summary>
-/// Statistical data for the match
-/// </summary>
+
 public class MatchStatistics
 {
     [JsonProperty("totalKills")]
