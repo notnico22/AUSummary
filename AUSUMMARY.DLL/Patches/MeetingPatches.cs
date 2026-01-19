@@ -41,8 +41,8 @@ public static class MeetingPatches
                 if (reporter != null)
                 {
                     callerName = reporter.Data.PlayerName;
-                    // If there are dead bodies, it's a report; otherwise it's emergency
-                    isEmergency = false; // We'll assume report for now
+
+                    isEmergency = false; 
                 }
             }
 

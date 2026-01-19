@@ -107,7 +107,7 @@ public class PlayerSnapshot
 }
 
 /// <summary>
-/// Represents a game event (meeting, death, etc.)
+/// Represents a game event (meeting, death, etc)
 /// </summary>
 public class GameEvent
 {
