@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Configurations>Debug;Release;Release-SingleFile</Configurations>
   </PropertyGroup>
 
   <PropertyGroup>
