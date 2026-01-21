@@ -81,17 +81,26 @@ public class PlayerSnapshot
     [JsonProperty("team")]
     public string Team { get; set; } = "Crewmate";
 
+    [JsonProperty("modifiers")]
+    public List<string> Modifiers { get; set; } = new();
+
     [JsonProperty("isAlive")]
     public bool IsAlive { get; set; } = true;
 
     [JsonProperty("deathCause")]
     public string? DeathCause { get; set; }
 
+    [JsonProperty("killType")]
+    public string? KillType { get; set; }
+
     [JsonProperty("timeOfDeath")]
     public float? TimeOfDeath { get; set; }
 
     [JsonProperty("killedBy")]
     public string? KilledBy { get; set; }
+
+    [JsonProperty("killCount")]
+    public int KillCount { get; set; }
 
     [JsonProperty("tasksCompleted")]
     public int TasksCompleted { get; set; }
@@ -153,6 +162,9 @@ public class MatchStatistics
 
     [JsonProperty("totalEjections")]
     public int TotalEjections { get; set; }
+
+    [JsonProperty("totalDeaths")]
+    public int TotalDeaths { get; set; }
 
     [JsonProperty("taskCompletionRate")]
     public float TaskCompletionRate { get; set; }

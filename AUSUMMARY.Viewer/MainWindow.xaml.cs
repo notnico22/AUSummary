@@ -4,21 +4,43 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media;
 using AUSUMMARY.Shared;
 using AUSUMMARY.Shared.Models;
 using Newtonsoft.Json;
 
 namespace AUSUMMARY.Viewer;
 
+/// <summary>
+/// Player role statistics for displaying in search
+/// </summary>
+public class RoleStats
+{
+    public string RoleName { get; set; } = "";
+    public int GamesPlayed { get; set; }
+    public double Percentage { get; set; }
+}
+
+/// <summary>
+/// Enhanced player statistics
+/// </summary>
+public class EnhancedPlayerStats
+{
+    public string PlayerName { get; set; } = "";
+    public int TotalGames { get; set; }
+    public int Wins { get; set; }
+    public double WinRate { get; set; }
+    public int TotalKills { get; set; }
+    public int TotalDeaths { get; set; }
+    public List<RoleStats> RoleBreakdown { get; set; } = new();
+}
+
 public partial class MainWindow : Window
 {
-    private ObservableCollection<GameSummary> _gameSummaries = new();
-    private ObservableCollection<GameSummary> _filteredGames = new();
+    private ObservableCollection<GameSummary> _gameSummaries = [];
+    private ObservableCollection<GameSummary> _filteredGames = [];
     private FileSystemWatcher? _watcher;
     private GameSummary? _currentGame;
 
@@ -27,6 +49,11 @@ public partial class MainWindow : Window
         try
         {
             InitializeComponent();
+            
+            if (AllGamesView != null) AllGamesView.Visibility = Visibility.Visible;
+            if (GameDetailsView != null) GameDetailsView.Visibility = Visibility.Collapsed;
+            if (PlayerSearchView != null) PlayerSearchView.Visibility = Visibility.Collapsed;
+            
             LoadGameSummaries();
             SetupFileWatcher();
         }
@@ -36,222 +63,80 @@ public partial class MainWindow : Window
         }
     }
 
+    #region Window Controls
+
+    private void TitleBar_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ChangedButton == MouseButton.Left)
+            DragMove();
+    }
+
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState.Minimized;
+    }
+
+    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+    {
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
+
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }
 
-    private void OpenFolder_Click(object sender, RoutedEventArgs e)
+    #endregion
+
+    #region Navigation
+
+    private void ShowAllGames_Click(object sender, RoutedEventArgs e)
+    {
+        if (AllGamesView != null) AllGamesView.Visibility = Visibility.Visible;
+        if (GameDetailsView != null) GameDetailsView.Visibility = Visibility.Collapsed;
+        if (PlayerSearchView != null) PlayerSearchView.Visibility = Visibility.Collapsed;
+        if (StatusText != null) StatusText.Text = "Browsing all games";
+    }
+
+    private void ShowMostRecent_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            var path = AUSummaryConstants.GetSummariesPath();
-            if (Directory.Exists(path))
+            if (_gameSummaries == null || _gameSummaries.Count == 0)
             {
-                Process.Start("explorer.exe", path);
-                StatusText.Text = "Opened summaries folder";
+                if (StatusText != null) StatusText.Text = "No games available";
+                MessageBox.Show("No games found! Play some Among Us first.", "No Games", MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
             }
-            else
+
+            var mostRecent = _gameSummaries.OrderByDescending(g => g.Timestamp).FirstOrDefault();
+            if (mostRecent != null)
             {
-                MessageBox.Show("Summaries folder not found!", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                ShowGameDetails(mostRecent);
             }
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Error opening folder: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Error showing most recent game: {ex.Message}\n\n{ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
-    private void ClearData_Click(object sender, RoutedEventArgs e)
+    private void ShowPlayerSearch_Click(object sender, RoutedEventArgs e)
     {
-        var result = MessageBox.Show("Are you sure you want to delete ALL game data? This cannot be undone!", 
-            "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        
-        if (result == MessageBoxResult.Yes)
-        {
-            try
-            {
-                var path = AUSummaryConstants.GetSummariesPath();
-                if (Directory.Exists(path))
-                {
-                    foreach (var file in Directory.GetFiles(path, "*.json"))
-                    {
-                        File.Delete(file);
-                    }
-                    _gameSummaries.Clear();
-                    ApplyFilters();
-                    UpdateStatistics();
-                    StatusText.Text = "All data cleared";
-                    MessageBox.Show("All game data has been deleted.", "Success", MessageBoxButton.OK, MessageBoxImage.Information);
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error clearing data: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
+        if (AllGamesView != null) AllGamesView.Visibility = Visibility.Collapsed;
+        if (GameDetailsView != null) GameDetailsView.Visibility = Visibility.Collapsed;
+        if (PlayerSearchView != null) PlayerSearchView.Visibility = Visibility.Visible;
+        if (StatusText != null) StatusText.Text = "Search for a player";
     }
 
-    private void ExportStats_Click(object sender, RoutedEventArgs e)
+    private void BackToGames_Click(object sender, RoutedEventArgs e)
     {
-        try
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine("AUSUMMARY - Game Statistics Export");
-            sb.AppendLine($"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
-            sb.AppendLine();
-            sb.AppendLine($"Total Games: {_gameSummaries.Count}");
-            
-            if (_gameSummaries.Count > 0)
-            {
-                var crewWins = _gameSummaries.Count(g => g.Winner.WinningTeam == "Crewmate");
-                var impWins = _gameSummaries.Count(g => g.Winner.WinningTeam == "Impostor");
-                sb.AppendLine($"Crewmate Wins: {crewWins} ({crewWins * 100.0 / _gameSummaries.Count:F1}%)");
-                sb.AppendLine($"Impostor Wins: {impWins} ({impWins * 100.0 / _gameSummaries.Count:F1}%)");
-                sb.AppendLine();
-                
-                sb.AppendLine("Games:");
-                foreach (var game in _gameSummaries)
-                {
-                    sb.AppendLine($"  {game.Timestamp:yyyy-MM-dd HH:mm} | {game.Metadata.MapName} | Winner: {game.Winner.WinningTeam}");
-                }
-            }
-
-            var exportPath = Path.Combine(AUSummaryConstants.GetSummariesPath(), $"export_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
-            File.WriteAllText(exportPath, sb.ToString());
-            StatusText.Text = $"Stats exported to {Path.GetFileName(exportPath)}";
-            MessageBox.Show($"Statistics exported successfully!\n\n{exportPath}", "Export Complete", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Error exporting: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
+        ShowAllGames_Click(sender, e);
     }
 
-    private void CopyMatchID_Click(object sender, RoutedEventArgs e)
-    {
-        if (_currentGame != null)
-        {
-            Clipboard.SetText(_currentGame.MatchId);
-            StatusText.Text = "Match ID copied to clipboard";
-        }
-    }
+    #endregion
 
-    private void DeleteGame_Click(object sender, RoutedEventArgs e)
-    {
-        if (_currentGame == null) return;
-
-        var result = MessageBox.Show($"Delete this game?\n\nMatch ID: {_currentGame.MatchId[..8]}\nTime: {_currentGame.Timestamp:yyyy-MM-dd HH:mm}", 
-            "Confirm Delete", MessageBoxButton.YesNo, MessageBoxImage.Warning);
-        
-        if (result == MessageBoxResult.Yes)
-        {
-            try
-            {
-                var files = Directory.GetFiles(AUSummaryConstants.GetSummariesPath(), "*.json");
-                foreach (var file in files)
-                {
-                    var json = File.ReadAllText(file);
-                    var game = JsonConvert.DeserializeObject<GameSummary>(json);
-                    if (game?.MatchId == _currentGame.MatchId)
-                    {
-                        File.Delete(file);
-                        _gameSummaries.Remove(_currentGame);
-                        ApplyFilters();
-                        UpdateStatistics();
-                        ViewAllGames_Click(null!, null!);
-                        StatusText.Text = "Game deleted";
-                        break;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error deleting game: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
-        }
-    }
-
-    private void ViewLeaderboard_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            GamesGridView.Visibility = Visibility.Collapsed;
-            DetailsView.Visibility = Visibility.Collapsed;
-            PlayerStatsView.Visibility = Visibility.Collapsed;
-            LeaderboardView.Visibility = Visibility.Visible;
-
-            // Collect player statistics
-            var playerStats = new Dictionary<string, (int games, int wins, int kills, int deaths, int tasks)>();
-
-            foreach (var game in _gameSummaries)
-            {
-                foreach (var player in game.Players)
-                {
-                    if (!playerStats.ContainsKey(player.PlayerName))
-                    {
-                        playerStats[player.PlayerName] = (0, 0, 0, 0, 0);
-                    }
-
-                    var stats = playerStats[player.PlayerName];
-                    stats.games++;
-                    
-                    if (game.Winner.Winners.Contains(player.PlayerName, StringComparer.OrdinalIgnoreCase))
-                        stats.wins++;
-                    
-                    if (!player.IsAlive)
-                        stats.deaths++;
-                    
-                    stats.tasks += player.TasksCompleted;
-
-                    var kills = game.Events.Count(e => 
-                        e.EventType == "PlayerKilled" && 
-                        e.Description.Contains($"by {player.PlayerName}"));
-                    stats.kills += kills;
-
-                    playerStats[player.PlayerName] = stats;
-                }
-            }
-
-            var leaderboard = playerStats
-                .Select(kvp => new 
-                { 
-                    Player = kvp.Key, 
-                    Games = kvp.Value.games,
-                    Wins = kvp.Value.wins,
-                    WinRate = kvp.Value.games > 0 ? kvp.Value.wins * 100.0 / kvp.Value.games : 0,
-                    Kills = kvp.Value.kills,
-                    Deaths = kvp.Value.deaths,
-                    Tasks = kvp.Value.tasks
-                })
-                .OrderByDescending(p => p.WinRate)
-                .ThenByDescending(p => p.Games)
-                .Take(20)
-                .ToList();
-
-            var sb = new StringBuilder();
-            sb.AppendLine("TOP 20 PLAYERS BY WIN RATE");
-            sb.AppendLine("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n");
-
-            int rank = 1;
-            foreach (var player in leaderboard)
-            {
-                var medal = rank <= 3 ? (rank == 1 ? "🥇" : rank == 2 ? "🥈" : "🥉") : $"#{rank}";
-                sb.AppendLine($"{medal} {player.Player}");
-                sb.AppendLine($"    Games: {player.Games} | Wins: {player.Wins} ({player.WinRate:F1}%)");
-                sb.AppendLine($"    Kills: {player.Kills} | Deaths: {player.Deaths} | Tasks: {player.Tasks}");
-                sb.AppendLine();
-                rank++;
-            }
-
-            LeaderboardText.Text = sb.ToString();
-            StatusText.Text = $"Showing top {leaderboard.Count} players";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Error generating leaderboard: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
+    #region Data Loading
 
     private void LoadGameSummaries()
     {
@@ -261,12 +146,13 @@ public partial class MainWindow : Window
             
             if (!Directory.Exists(summariesPath))
             {
+                Directory.CreateDirectory(summariesPath);
                 if (StatusText != null)
-                    StatusText.Text = "No summaries folder found";
+                    StatusText.Text = "Created summaries folder";
                 return;
             }
 
-            var files = Directory.GetFiles(summariesPath, $"*{AUSummaryConstants.SummaryFileExtension}")
+            var files = Directory.GetFiles(summariesPath, "*.json")
                 .OrderByDescending(f => File.GetCreationTime(f))
                 .ToList();
 
@@ -280,6 +166,14 @@ public partial class MainWindow : Window
                     var summary = JsonConvert.DeserializeObject<GameSummary>(json);
                     if (summary != null)
                     {
+                        foreach (var player in summary.Players)
+                        {
+                            player.Modifiers ??= [];
+                            player.KillType ??= "";
+                            player.KilledBy ??= "";
+                            player.DeathCause ??= "";
+                        }
+                        
                         _gameSummaries.Add(summary);
                     }
                 }
@@ -310,7 +204,7 @@ public partial class MainWindow : Window
 
             _watcher = new FileSystemWatcher(summariesPath)
             {
-                Filter = $"*{AUSummaryConstants.SummaryFileExtension}",
+                Filter = "*.json",
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.CreationTime
             };
 
@@ -332,16 +226,28 @@ public partial class MainWindow : Window
                 var summary = JsonConvert.DeserializeObject<GameSummary>(json);
                 if (summary != null)
                 {
+                    foreach (var player in summary.Players)
+                    {
+                        player.Modifiers ??= [];
+                        player.KillType ??= "";
+                        player.KilledBy ??= "";
+                        player.DeathCause ??= "";
+                    }
+                    
                     _gameSummaries.Insert(0, summary);
                     ApplyFilters();
                     UpdateStatistics();
                     if (StatusText != null)
-                        StatusText.Text = "New game added!";
+                        StatusText.Text = "🎮 New game added!";
                 }
             }
             catch { }
         });
     }
+
+    #endregion
+
+    #region Filtering and Statistics
 
     private void ApplyFilters()
     {
@@ -349,56 +255,36 @@ public partial class MainWindow : Window
         {
             var filtered = _gameSummaries.AsEnumerable();
 
-            // Map filter
-            if (MapFilter != null && MapFilter.SelectedIndex > 0)
+            if (CbMapFilter != null && CbMapFilter.SelectedIndex > 0)
             {
-                var selectedMap = (MapFilter.SelectedItem as ComboBoxItem)?.Content.ToString();
-                filtered = filtered.Where(g => g.Metadata.MapName == selectedMap);
+                var selectedMap = (CbMapFilter.SelectedItem as ComboBoxItem)?.Content.ToString();
+                if (selectedMap != null)
+                    filtered = filtered.Where(g => g.Metadata.MapName == selectedMap);
             }
 
-            // Winner filter
-            if (WinnerFilter != null && WinnerFilter.SelectedIndex > 0)
+            if (CbWinnerFilter != null && CbWinnerFilter.SelectedIndex > 0)
             {
-                var selectedWinner = WinnerFilter.SelectedIndex == 1 ? "Crewmate" : "Impostor";
-                filtered = filtered.Where(g => g.Winner.WinningTeam == selectedWinner);
-            }
-
-            // Player count filter
-            if (PlayerCountFilter != null && PlayerCountFilter.SelectedIndex > 0)
-            {
-                filtered = PlayerCountFilter.SelectedIndex switch
+                filtered = CbWinnerFilter.SelectedIndex switch
                 {
-                    1 => filtered.Where(g => g.Metadata.PlayerCount <= 4),
-                    2 => filtered.Where(g => g.Metadata.PlayerCount >= 5 && g.Metadata.PlayerCount <= 8),
-                    3 => filtered.Where(g => g.Metadata.PlayerCount >= 9),
+                    1 => filtered.Where(g => g.Winner.WinningTeam == "Crewmate"),
+                    2 => filtered.Where(g => g.Winner.WinningTeam == "Impostor"),
                     _ => filtered
                 };
             }
 
-            // Sort
-            if (SortFilter != null)
-            {
-                filtered = SortFilter.SelectedIndex switch
-                {
-                    0 => filtered.OrderByDescending(g => g.Timestamp),
-                    1 => filtered.OrderBy(g => g.Timestamp),
-                    2 => filtered.OrderByDescending(g => g.Metadata.GameDuration),
-                    3 => filtered.OrderBy(g => g.Metadata.GameDuration),
-                    _ => filtered
-                };
-            }
+            filtered = filtered.OrderByDescending(g => g.Timestamp);
 
-            _filteredGames = new ObservableCollection<GameSummary>(filtered);
+            _filteredGames = [.. filtered];
             
             if (GamesGrid != null)
                 GamesGrid.ItemsSource = _filteredGames;
-            
-            if (GameCountText != null)
-                GameCountText.Text = $"{_filteredGames.Count} game{(_filteredGames.Count != 1 ? "s" : "")}";
+
+            if (NoGamesPanel != null)
+                NoGamesPanel.Visibility = _filteredGames.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Filter error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Filter error: {ex.Message}\n\n{ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -408,22 +294,19 @@ public partial class MainWindow : Window
         {
             if (_gameSummaries.Count == 0)
             {
-                if (TotalGamesText != null) TotalGamesText.Text = "Total Games: 0";
-                if (CrewWinRateText != null) CrewWinRateText.Text = "Crew Win Rate: 0%";
-                if (ImpWinRateText != null) ImpWinRateText.Text = "Imp Win Rate: 0%";
-                if (AvgDurationText != null) AvgDurationText.Text = "Avg Duration: 0:00";
+                if (TxtTotalGames != null) TxtTotalGames.Text = "0";
+                if (TxtCrewWinRate != null) TxtCrewWinRate.Text = "0%";
+                if (TxtImpWinRate != null) TxtImpWinRate.Text = "0%";
                 return;
             }
 
             var totalGames = _gameSummaries.Count;
             var crewWins = _gameSummaries.Count(g => g.Winner.WinningTeam == "Crewmate");
             var impWins = _gameSummaries.Count(g => g.Winner.WinningTeam == "Impostor");
-            var avgDuration = TimeSpan.FromSeconds(_gameSummaries.Average(g => g.Metadata.GameDuration.TotalSeconds));
 
-            if (TotalGamesText != null) TotalGamesText.Text = $"Total Games: {totalGames}";
-            if (CrewWinRateText != null) CrewWinRateText.Text = $"Crew Win Rate: {(crewWins * 100.0 / totalGames):F1}%";
-            if (ImpWinRateText != null) ImpWinRateText.Text = $"Imp Win Rate: {(impWins * 100.0 / totalGames):F1}%";
-            if (AvgDurationText != null) AvgDurationText.Text = $"Avg Duration: {avgDuration:mm\\:ss}";
+            if (TxtTotalGames != null) TxtTotalGames.Text = totalGames.ToString();
+            if (TxtCrewWinRate != null) TxtCrewWinRate.Text = $"{(crewWins * 100.0 / totalGames):F0}%";
+            if (TxtImpWinRate != null) TxtImpWinRate.Text = $"{(impWins * 100.0 / totalGames):F0}%";
         }
         catch { }
     }
@@ -435,80 +318,124 @@ public partial class MainWindow : Window
 
     private void ClearFilters_Click(object sender, RoutedEventArgs e)
     {
-        if (MapFilter != null) MapFilter.SelectedIndex = 0;
-        if (WinnerFilter != null) WinnerFilter.SelectedIndex = 0;
-        if (PlayerCountFilter != null) PlayerCountFilter.SelectedIndex = 0;
-        if (SortFilter != null) SortFilter.SelectedIndex = 0;
+        if (CbMapFilter != null) CbMapFilter.SelectedIndex = 0;
+        if (CbWinnerFilter != null) CbWinnerFilter.SelectedIndex = 0;
         if (StatusText != null) StatusText.Text = "Filters cleared";
     }
 
-    private void SearchBox_GotFocus(object sender, RoutedEventArgs e)
-    {
-        if (SearchBox != null && SearchBox.Text == "Enter player name...")
-        {
-            SearchBox.Text = "";
-        }
-    }
+    #endregion
 
-    private void SearchBox_LostFocus(object sender, RoutedEventArgs e)
-    {
-        if (SearchBox != null && string.IsNullOrWhiteSpace(SearchBox.Text))
-        {
-            SearchBox.Text = "Enter player name...";
-        }
-    }
-
-    private void ViewMostRecent_Click(object sender, RoutedEventArgs e)
-    {
-        if (_gameSummaries.Count == 0)
-        {
-            if (StatusText != null) StatusText.Text = "No games available";
-            return;
-        }
-
-        ShowGameDetails(_gameSummaries[0]);
-    }
-
-    private void ViewAllGames_Click(object sender, RoutedEventArgs e)
-    {
-        if (GamesGridView != null) GamesGridView.Visibility = Visibility.Visible;
-        if (DetailsView != null) DetailsView.Visibility = Visibility.Collapsed;
-        if (PlayerStatsView != null) PlayerStatsView.Visibility = Visibility.Collapsed;
-        if (LeaderboardView != null) LeaderboardView.Visibility = Visibility.Collapsed;
-        if (StatusText != null) StatusText.Text = "Browsing all games";
-    }
+    #region Game Details
 
     private void GameCard_Click(object sender, MouseButtonEventArgs e)
     {
-        if (sender is Border border && border.Tag is GameSummary summary)
+        try
         {
-            ShowGameDetails(summary);
+            if (sender is Border border && border.DataContext is GameSummary summary)
+            {
+                ShowGameDetails(summary);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error opening game: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
-    private void GameCard_MouseEnter(object sender, MouseEventArgs e)
+    private void ShowGameDetails(GameSummary summary)
     {
-        if (sender is Border border)
+        try
         {
-            border.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#3E3E42"));
+            if (summary == null) return;
+            
+            _currentGame = summary;
+            
+            if (AllGamesView != null) AllGamesView.Visibility = Visibility.Collapsed;
+            if (GameDetailsView != null) GameDetailsView.Visibility = Visibility.Visible;
+            if (PlayerSearchView != null) PlayerSearchView.Visibility = Visibility.Collapsed;
+
+            if (TxtDetailMapName != null) TxtDetailMapName.Text = summary.Metadata.MapName;
+            if (TxtDetailTimestamp != null) TxtDetailTimestamp.Text = summary.Timestamp.ToString("MMM dd, yyyy - HH:mm");
+            if (TxtDetailWinner != null) TxtDetailWinner.Text = summary.Winner.WinningTeam;
+            if (TxtDetailCondition != null) TxtDetailCondition.Text = summary.Winner.WinCondition;
+
+            if (TxtDetailDuration != null) TxtDetailDuration.Text = summary.Metadata.GameDuration.ToString(@"mm\:ss");
+            if (TxtDetailPlayers != null) TxtDetailPlayers.Text = summary.Metadata.PlayerCount.ToString();
+            if (TxtDetailKills != null) TxtDetailKills.Text = summary.Statistics.TotalKills.ToString();
+            if (TxtDetailTasks != null) TxtDetailTasks.Text = $"{(summary.Statistics.TaskCompletionRate * 100):F0}%";
+
+            if (PlayersListDetail != null) PlayersListDetail.ItemsSource = summary.Players;
+
+            if (StatusText != null) StatusText.Text = $"Viewing game from {summary.Timestamp:MMM dd, HH:mm}";
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error showing details: {ex.Message}\n\n{ex.StackTrace}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
-    private void GameCard_MouseLeave(object sender, MouseEventArgs e)
+    /// <summary>
+    /// NEW: Show player details popup when clicking a player in game view
+    /// </summary>
+    private void PlayerCard_Click(object sender, MouseButtonEventArgs e)
     {
-        if (sender is Border border)
+        try
         {
-            border.Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString("#252526"));
+            if (sender is Border border && border.DataContext is PlayerSnapshot player)
+            {
+                ShowPlayerDetailsPopup(player);
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error showing player details: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
+
+    private void ShowPlayerDetailsPopup(PlayerSnapshot player)
+    {
+        var statusText = player.IsAlive ? "✅ Alive" : player.WasEjected ? "🚀 Ejected" : "💀 Dead";
+        
+        var details = $"Player: {player.PlayerName}\n" +
+                     $"Role: {player.Role} ({player.Team})\n" +
+                     $"Status: {statusText}\n\n";
+
+        if (!player.IsAlive)
+        {
+            details += $"Death Details:\n";
+            if (player.TimeOfDeath.HasValue)
+                details += $"  ⏰ Time: {player.TimeOfDeath.Value:F1}s\n";
+            if (!string.IsNullOrEmpty(player.KilledBy))
+                details += $"  🔪 Killed By: {player.KilledBy}\n";
+            if (!string.IsNullOrEmpty(player.KillType))
+                details += $"  💀 Kill Type: {player.KillType}\n";
+            if (player.WasEjected)
+                details += $"  🚀 Ejected during meeting\n";
+        }
+
+        details += $"\nGame Stats:\n";
+        details += $"  🔪 Kills: {player.KillCount}\n";
+        details += $"  ✅ Tasks: {player.TasksCompleted}/{player.TotalTasks}\n";
+
+        if (player.Modifiers.Any())
+        {
+            details += $"\n🎭 Modifiers: {string.Join(", ", player.Modifiers)}\n";
+        }
+
+        MessageBox.Show(details, $"{player.PlayerName} Details", MessageBoxButton.OK, MessageBoxImage.Information);
+    }
+
+    #endregion
+
+    #region Player Search
 
     private void SearchPlayer_Click(object sender, RoutedEventArgs e)
     {
-        if (SearchBox == null) return;
+        if (TxtPlayerSearch == null) return;
         
-        var playerName = SearchBox.Text.Trim();
+        var playerName = TxtPlayerSearch.Text.Trim();
         
-        if (string.IsNullOrEmpty(playerName) || playerName == "Enter player name...")
+        if (string.IsNullOrEmpty(playerName))
         {
             if (StatusText != null) StatusText.Text = "Please enter a player name";
             return;
@@ -517,167 +444,38 @@ public partial class MainWindow : Window
         ShowPlayerStats(playerName);
     }
 
-    private void ShowGameDetails(GameSummary summary)
-    {
-        try
-        {
-            _currentGame = summary;
-            
-            if (GamesGridView != null) GamesGridView.Visibility = Visibility.Collapsed;
-            if (DetailsView != null) DetailsView.Visibility = Visibility.Visible;
-            if (PlayerStatsView != null) PlayerStatsView.Visibility = Visibility.Collapsed;
-            if (LeaderboardView != null) LeaderboardView.Visibility = Visibility.Collapsed;
-
-            var playersDetails = string.Join("\n\n", summary.Players.Select(p =>
-            {
-                var status = p.IsAlive ? "✅ ALIVE" : "💀 DEAD";
-                var tasks = p.Team == "Impostor" ? "" : $"\n    Tasks: {p.TasksCompleted}/{p.TotalTasks}";
-                var death = !p.IsAlive && !string.IsNullOrEmpty(p.KilledBy) 
-                    ? $"\n    Killed by: {p.KilledBy}" 
-                    : "";
-                
-                return $"  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                       $"  {p.PlayerName} ({p.ColorName})\n" +
-                       $"  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                       $"    Status: {status}\n" +
-                       $"    Role: {p.Role}\n" +
-                       $"    Team: {p.Team}{tasks}{death}";
-            }));
-
-            var details = $"🎮 MATCH SUMMARY\n" +
-                         $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                         $"📋 Match ID: {summary.MatchId[..8]}\n" +
-                         $"⏰ Time: {summary.Timestamp:yyyy-MM-dd HH:mm:ss}\n" +
-                         $"🗺️ Map: {summary.Metadata.MapName}\n" +
-                         $"⏱️ Duration: {summary.Metadata.GameDuration:mm\\:ss}\n\n" +
-                         $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                         $"📊 GAME STATS\n" +
-                         $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                         $"👥 Players: {summary.Metadata.PlayerCount}\n" +
-                         $"📋 Meetings: {summary.Metadata.TotalMeetings}\n" +
-                         $"✅ Tasks: {summary.Metadata.CompletedTasks}/{summary.Metadata.TotalTasks} ({summary.Statistics.TaskCompletionRate:P0})\n" +
-                         $"💀 Deaths: {summary.Statistics.TotalKills} kills, {summary.Statistics.TotalEjections} ejections\n\n" +
-                         $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                         $"🏆 WINNER\n" +
-                         $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                         $"Team: {summary.Winner.WinningTeam}\n" +
-                         $"Condition: {summary.Winner.WinCondition}\n\n" +
-                         $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
-                         $"👥 PLAYERS\n" +
-                         $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                         $"{playersDetails}";
-
-            if (DetailsText != null) DetailsText.Text = details;
-            if (StatusText != null) StatusText.Text = $"Viewing game from {summary.Timestamp:MMM dd, HH:mm}";
-        }
-        catch (Exception ex)
-        {
-            MessageBox.Show($"Error showing details: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        }
-    }
-
     private void ShowPlayerStats(string playerName)
     {
         try
         {
-            if (GamesGridView != null) GamesGridView.Visibility = Visibility.Collapsed;
-            if (DetailsView != null) DetailsView.Visibility = Visibility.Collapsed;
-            if (PlayerStatsView != null) PlayerStatsView.Visibility = Visibility.Visible;
-            if (LeaderboardView != null) LeaderboardView.Visibility = Visibility.Collapsed;
-
             var playerGames = _gameSummaries
                 .Where(g => g.Players.Any(p => p.PlayerName.Equals(playerName, StringComparison.OrdinalIgnoreCase)))
                 .ToList();
 
             if (playerGames.Count == 0)
             {
-                if (PlayerStatsText != null) PlayerStatsText.Text = $"No games found for player: {playerName}";
+                if (PlayerStatsPanel != null) PlayerStatsPanel.Visibility = Visibility.Collapsed;
                 if (StatusText != null) StatusText.Text = $"No results for '{playerName}'";
+                MessageBox.Show($"No games found for player: {playerName}", "Not Found", MessageBoxButton.OK, MessageBoxImage.Information);
                 return;
             }
 
-            int totalGames = playerGames.Count;
-            int gamesAsCrewmate = 0;
-            int gamesAsImpostor = 0;
-            int gamesAsNeutral = 0;
-            int wins = 0;
-            int losses = 0;
-            int deaths = 0;
-            int survived = 0;
-            int totalKills = 0;
-            int totalTasksCompleted = 0;
-            int totalTasks = 0;
-            var rolesPlayed = new Dictionary<string, int>();
+            if (PlayerStatsPanel != null) PlayerStatsPanel.Visibility = Visibility.Visible;
+            if (TxtSearchPlayerName != null) TxtSearchPlayerName.Text = playerName;
 
-            foreach (var game in playerGames)
-            {
-                var player = game.Players.First(p => p.PlayerName.Equals(playerName, StringComparison.OrdinalIgnoreCase));
-                
-                if (player.Team == "Crewmate") gamesAsCrewmate++;
-                else if (player.Team == "Impostor") gamesAsImpostor++;
-                else gamesAsNeutral++;
+            // Calculate enhanced statistics
+            var stats = CalculateEnhancedPlayerStats(playerName, playerGames);
 
-                if (game.Winner.Winners.Contains(player.PlayerName, StringComparer.OrdinalIgnoreCase))
-                    wins++;
-                else
-                    losses++;
+            // Display basic stats
+            if (TxtSearchGamesPlayed != null) TxtSearchGamesPlayed.Text = stats.TotalGames.ToString();
+            if (TxtSearchWinRate != null) TxtSearchWinRate.Text = $"{stats.WinRate:F0}%";
+            if (TxtSearchKills != null) TxtSearchKills.Text = stats.TotalKills.ToString();
+            if (TxtSearchDeaths != null) TxtSearchDeaths.Text = stats.TotalDeaths.ToString();
 
-                if (!player.IsAlive) deaths++;
-                else survived++;
+            // Display role breakdown
+            if (RoleBreakdownList != null) RoleBreakdownList.ItemsSource = stats.RoleBreakdown;
 
-                totalTasksCompleted += player.TasksCompleted;
-                totalTasks += player.TotalTasks;
-
-                if (!rolesPlayed.ContainsKey(player.Role))
-                    rolesPlayed[player.Role] = 0;
-                rolesPlayed[player.Role]++;
-
-                totalKills += game.Events.Count(e => 
-                    e.EventType == "PlayerKilled" && 
-                    e.Description.Contains($"by {player.PlayerName}"));
-            }
-
-            var winRate = (wins * 100.0 / totalGames);
-            var deathRate = (deaths * 100.0 / totalGames);
-            var taskCompletion = totalTasks > 0 ? (totalTasksCompleted * 100.0 / totalTasks) : 0;
-
-            var rolesPlayedText = string.Join("\n", rolesPlayed.OrderByDescending(r => r.Value)
-                .Select(r => $"  {r.Key}: {r.Value} game{(r.Value > 1 ? "s" : "")}"));
-
-            var stats = $"👤 PLAYER: {playerName}\n" +
-                       $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                       $"📊 OVERALL STATISTICS\n\n" +
-                       $"Total Games Played: {totalGames}\n" +
-                       $"Wins: {wins} ({winRate:F1}%)\n" +
-                       $"Losses: {losses}\n\n" +
-                       $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                       $"🎭 TEAM BREAKDOWN\n\n" +
-                       $"Crewmate: {gamesAsCrewmate} game{(gamesAsCrewmate != 1 ? "s" : "")}\n" +
-                       $"Impostor: {gamesAsImpostor} game{(gamesAsImpostor != 1 ? "s" : "")}\n" +
-                       $"Neutral: {gamesAsNeutral} game{(gamesAsNeutral != 1 ? "s" : "")}\n\n" +
-                       $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                       $"💀 SURVIVAL STATS\n\n" +
-                       $"Deaths: {deaths} ({deathRate:F1}%)\n" +
-                       $"Survived: {survived}\n" +
-                       $"Kills: {totalKills}\n\n" +
-                       $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                       $"✅ TASK STATISTICS\n\n" +
-                       $"Tasks Completed: {totalTasksCompleted}/{totalTasks}\n" +
-                       $"Completion Rate: {taskCompletion:F1}%\n\n" +
-                       $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                       $"🎭 ROLES PLAYED\n\n" +
-                       $"{rolesPlayedText}\n\n" +
-                       $"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
-                       $"🎮 RECENT GAMES\n\n" +
-                       string.Join("\n", playerGames.Take(5).Select(g =>
-                       {
-                           var p = g.Players.First(pl => pl.PlayerName.Equals(playerName, StringComparison.OrdinalIgnoreCase));
-                           var won = g.Winner.Winners.Contains(p.PlayerName, StringComparer.OrdinalIgnoreCase);
-                           return $"  {g.Timestamp:MMM dd HH:mm} - {p.Role} - {(won ? "✅ WIN" : "❌ LOSS")}";
-                       }));
-
-            if (PlayerStatsText != null) PlayerStatsText.Text = stats;
-            if (StatusText != null) StatusText.Text = $"Viewing stats for '{playerName}' - {totalGames} games found";
+            if (StatusText != null) StatusText.Text = $"Found {stats.TotalGames} games for '{playerName}'";
         }
         catch (Exception ex)
         {
@@ -685,10 +483,88 @@ public partial class MainWindow : Window
         }
     }
 
-    private void RefreshButton_Click(object sender, RoutedEventArgs e)
+    private EnhancedPlayerStats CalculateEnhancedPlayerStats(string playerName, List<GameSummary> playerGames)
+    {
+        var stats = new EnhancedPlayerStats
+        {
+            PlayerName = playerName,
+            TotalGames = playerGames.Count
+        };
+
+        var roleCounts = new Dictionary<string, int>();
+
+        foreach (var game in playerGames)
+        {
+            var player = game.Players.First(p => p.PlayerName.Equals(playerName, StringComparison.OrdinalIgnoreCase));
+            
+            // Count wins
+            if (game.Winner.Winners.Contains(player.PlayerName, StringComparer.OrdinalIgnoreCase))
+                stats.Wins++;
+
+            // Count deaths
+            if (!player.IsAlive)
+                stats.TotalDeaths++;
+
+            // Sum kills
+            stats.TotalKills += player.KillCount;
+
+            // Count roles
+            if (!string.IsNullOrEmpty(player.Role))
+            {
+                if (!roleCounts.ContainsKey(player.Role))
+                    roleCounts[player.Role] = 0;
+                roleCounts[player.Role]++;
+            }
+        }
+
+        stats.WinRate = (stats.Wins * 100.0 / stats.TotalGames);
+
+        // Convert role counts to RoleStats with percentages
+        stats.RoleBreakdown = roleCounts
+            .OrderByDescending(r => r.Value)
+            .Select(r => new RoleStats
+            {
+                RoleName = r.Key,
+                GamesPlayed = r.Value,
+                Percentage = (r.Value * 100.0 / stats.TotalGames)
+            })
+            .ToList();
+
+        return stats;
+    }
+
+    #endregion
+
+    #region Tools and Actions
+
+    private void OpenFolder_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var path = AUSummaryConstants.GetSummariesPath();
+            if (Directory.Exists(path))
+            {
+                Process.Start(new ProcessStartInfo
+                {
+                    FileName = path,
+                    UseShellExecute = true
+                });
+                if (StatusText != null) StatusText.Text = "Opened summaries folder";
+            }
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Error opening folder: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+        }
+    }
+
+    private void RefreshData_Click(object sender, RoutedEventArgs e)
     {
         LoadGameSummaries();
+        if (StatusText != null) StatusText.Text = "Data refreshed";
     }
+
+    #endregion
 
     protected override void OnClosed(EventArgs e)
     {

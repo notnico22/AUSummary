@@ -84,6 +84,9 @@ public static class GameTracker
         {
             _logger?.LogInfo("Ending game tracking...");
 
+            // Capture modifiers at end of game
+            CaptureAllModifiers();
+
             // Set game duration
             _currentGame.Metadata.GameDuration = DateTime.Now - _gameStartTime;
 
@@ -128,9 +131,9 @@ public static class GameTracker
     }
 
     /// <summary>
-    /// Capture player information
+    /// Capture player information including modifiers
     /// </summary>
-    public static void CapturePlayerData(NetworkedPlayerInfo playerInfo, string role, string team)
+    public static void CapturePlayerData(NetworkedPlayerInfo playerInfo, string role, string team, List<string> modifiers)
     {
         if (!_isTracking || _currentGame == null) return;
 
@@ -143,9 +146,10 @@ public static class GameTracker
                 // Update existing player
                 existingPlayer.Role = role;
                 existingPlayer.Team = team;
+                existingPlayer.Modifiers = modifiers;
                 existingPlayer.IsAlive = !playerInfo.IsDead;
                 
-                _logger?.LogInfo($"Updated player: {existingPlayer.PlayerName} - {role} ({team})");
+                _logger?.LogInfo($"Updated player: {existingPlayer.PlayerName} - {role} ({team}) Modifiers: {string.Join(", ", modifiers)}");
             }
             else
             {
@@ -160,13 +164,14 @@ public static class GameTracker
                     ColorName = colorName,
                     Role = role,
                     Team = team,
+                    Modifiers = modifiers,
                     IsAlive = !playerInfo.IsDead,
                     TotalTasks = playerInfo.Tasks?.Count ?? 0
                 };
                 
                 _currentGame.Players.Add(newPlayer);
                 
-                _logger?.LogInfo($"Added player: {newPlayer.PlayerName} ({colorName}) - {role} ({team})");
+                _logger?.LogInfo($"Added player: {newPlayer.PlayerName} ({colorName}) - {role} ({team}) Modifiers: {string.Join(", ", modifiers)}");
             }
         }
         catch (Exception ex)
@@ -176,9 +181,149 @@ public static class GameTracker
     }
 
     /// <summary>
-    /// Record a player death
+    /// Capture all players' modifiers at game end
     /// </summary>
-    public static void RecordDeath(byte playerId, string cause, string? killerName = null)
+    public static void CaptureAllModifiers()
+    {
+        if (!_isTracking || _currentGame == null) return;
+
+        try
+        {
+            _logger?.LogInfo("Capturing modifiers at game end...");
+            
+            foreach (var player in PlayerControl.AllPlayerControls)
+            {
+                if (player == null || player.Data == null) continue;
+
+                var modifiers = GetPlayerModifiers(player);
+                var existingPlayer = _currentGame.Players.FirstOrDefault(p => p.PlayerId == player.PlayerId);
+                
+                if (existingPlayer != null && modifiers.Any())
+                {
+                    existingPlayer.Modifiers = modifiers;
+                    _logger?.LogInfo($"Updated {existingPlayer.PlayerName} modifiers: {string.Join(", ", modifiers)}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError($"Error capturing all modifiers: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Update a player's alive status (called at game end)
+    /// </summary>
+    public static void UpdatePlayerAliveStatus(byte playerId, bool isAlive)
+    {
+        try
+        {
+            if (_currentGame == null) return;
+
+            var player = _currentGame.Players.FirstOrDefault(p => p.PlayerId == playerId);
+            if (player != null)
+            {
+                player.IsAlive = isAlive;
+                
+                // If dead and we don't have death info, mark as dead with unknown cause
+                if (!isAlive && string.IsNullOrEmpty(player.DeathCause))
+                {
+                    player.DeathCause = "Unknown";
+                    if (string.IsNullOrEmpty(player.KillType))
+                        player.KillType = "Killed";
+                }
+                
+                _logger?.LogInfo($"Updated alive status: {player.PlayerName} = {isAlive}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError($"Error updating player alive status: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Mark all players on the losing team as dead (used when game ends by kill)
+    /// </summary>
+    public static void MarkLosingTeamDead(string winningTeam)
+    {
+        try
+        {
+            if (_currentGame == null) return;
+
+            _logger?.LogInfo($"Marking losing team as dead. Winning team: {winningTeam}");
+
+            foreach (var player in _currentGame.Players)
+            {
+                // If this player's team is NOT the winning team, mark them as dead
+                if (player.Team != winningTeam)
+                {
+                    player.IsAlive = false;
+                    
+                    // If we don't have death details, add generic ones
+                    if (string.IsNullOrEmpty(player.DeathCause))
+                    {
+                        player.DeathCause = "Killed";
+                    }
+                    if (string.IsNullOrEmpty(player.KillType))
+                    {
+                        player.KillType = "Killed";
+                    }
+                    
+                    _logger?.LogInfo($"Marked {player.PlayerName} ({player.Team}) as dead (losing team)");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError($"Error marking losing team dead: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Update death information for a player (used when RPC arrives after Die method)
+    /// </summary>
+    public static void UpdateDeathInfo(byte playerId, string killerName, string killType)
+    {
+        if (!_isTracking || _currentGame == null) return;
+
+        try
+        {
+            var player = _currentGame.Players.FirstOrDefault(p => p.PlayerId == playerId);
+            if (player != null)
+            {
+                // Update killer info
+                player.KilledBy = killerName;
+                player.KillType = killType;
+
+                // Increment killer's kill count if not already done
+                var killer = _currentGame.Players.FirstOrDefault(p => p.PlayerName == killerName);
+                if (killer != null)
+                {
+                    // Check if we already counted this kill
+                    var currentKillCount = killer.KillCount;
+                    var expectedKillCount = _currentGame.Players.Count(p => p.KilledBy == killerName && !p.IsAlive);
+                    
+                    if (currentKillCount < expectedKillCount)
+                    {
+                        killer.KillCount = expectedKillCount;
+                        _logger?.LogInfo($"Updated {killerName} kill count to {killer.KillCount}");
+                    }
+                }
+
+                _logger?.LogInfo($"Updated death info: {player.PlayerName} was {killType} by {killerName}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError($"Error updating death info: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Record a player death with kill type
+    /// </summary>
+    public static void RecordDeath(byte playerId, string cause, string? killerName = null, string? killType = null)
     {
         if (!_isTracking || _currentGame == null) return;
 
@@ -189,18 +334,35 @@ public static class GameTracker
             {
                 player.IsAlive = false;
                 player.DeathCause = cause;
+                player.KillType = killType ?? "Killed";
                 player.TimeOfDeath = GetGameTime();
                 player.KilledBy = killerName;
                 player.WasEjected = cause == "Ejected";
 
-                _logger?.LogInfo($"Recorded death: {player.PlayerName} - {cause}" + (killerName != null ? $" by {killerName}" : ""));
+                // Increment killer's kill count
+                if (killerName != null)
+                {
+                    var killer = _currentGame.Players.FirstOrDefault(p => p.PlayerName == killerName);
+                    if (killer != null)
+                    {
+                        killer.KillCount++;
+                    }
+                }
+
+                var statusText = player.IsAlive ? "Alive" : $"Dead ({player.KillType})";
+                _logger?.LogInfo($"Recorded death: {player.PlayerName} - {statusText}" + (killerName != null ? $" by {killerName}" : ""));
 
                 AddEvent(new GameEvent
                 {
                     EventType = "PlayerKilled",
                     Timestamp = GetGameTime(),
-                    Description = $"{player.PlayerName} {cause}" + (killerName != null ? $" by {killerName}" : ""),
-                    InvolvedPlayers = killerName != null ? new List<string> { player.PlayerName, killerName } : new List<string> { player.PlayerName }
+                    Description = $"{player.PlayerName} {statusText}" + (killerName != null ? $" by {killerName}" : ""),
+                    InvolvedPlayers = killerName != null ? new List<string> { player.PlayerName, killerName } : new List<string> { player.PlayerName },
+                    Data = new Dictionary<string, object>
+                    {
+                        ["killType"] = killType ?? "Killed",
+                        ["cause"] = cause
+                    }
                 });
             }
             else
@@ -253,6 +415,8 @@ public static class GameTracker
             {
                 player.TasksCompleted++;
                 _currentGame.Metadata.CompletedTasks++;
+                
+                _logger?.LogInfo($"{player.PlayerName} completed task ({player.TasksCompleted}/{player.TotalTasks})");
             }
         }
         catch (Exception ex)
@@ -292,7 +456,7 @@ public static class GameTracker
                 ShipStatus.MapType.Ship => "The Skeld",
                 ShipStatus.MapType.Hq => "MIRA HQ",
                 ShipStatus.MapType.Pb => "Polus",
-                _ => "Unknown"
+                _ => shipStatus.Type.ToString()
             };
         }
         catch
@@ -317,6 +481,63 @@ public static class GameTracker
         return $"Color{colorId}";
     }
 
+    private static List<string> GetPlayerModifiers(PlayerControl player)
+    {
+        var modifiers = new List<string>();
+
+        try
+        {
+            // Try to get modifier component using MiraAPI
+            var modifierComponentType = Type.GetType("MiraAPI.Modifiers.ModifierComponent, MiraAPI");
+            if (modifierComponentType == null) return modifiers;
+
+            var getComponentMethod = typeof(PlayerControl).GetMethod("GetComponent");
+            if (getComponentMethod == null) return modifiers;
+
+            var genericMethod = getComponentMethod.MakeGenericMethod(modifierComponentType);
+            var modifierComponent = genericMethod.Invoke(player, null);
+            
+            if (modifierComponent == null) return modifiers;
+
+            // Get all modifiers from the component
+            var modifiersProperty = modifierComponentType.GetProperty("AllModifiers");
+            if (modifiersProperty != null)
+            {
+                var allModifiers = modifiersProperty.GetValue(modifierComponent);
+                if (allModifiers != null)
+                {
+                    var enumerable = allModifiers as System.Collections.IEnumerable;
+                    if (enumerable != null)
+                    {
+                        foreach (var modifier in enumerable)
+                        {
+                            if (modifier == null) continue;
+                            
+                            var modifierType = modifier.GetType();
+                            
+                            // Try to get modifier name
+                            var nameProperty = modifierType.GetProperty("ModifierName");
+                            if (nameProperty != null)
+                            {
+                                var name = nameProperty.GetValue(modifier)?.ToString();
+                                if (!string.IsNullOrEmpty(name) && !modifiers.Contains(name))
+                                {
+                                    modifiers.Add(name);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogWarning($"Error getting modifiers for {player.Data.PlayerName}: {ex.Message}");
+        }
+
+        return modifiers;
+    }
+
     private static float GetGameTime()
     {
         return (float)(DateTime.Now - _gameStartTime).TotalSeconds;
@@ -334,9 +555,14 @@ public static class GameTracker
 
         try
         {
-            // Count kills from Events, not from DeathCause
-            _currentGame.Statistics.TotalKills = _currentGame.Events.Count(e => e.EventType == "PlayerKilled" && e.Description.Contains("Killed"));
-            _currentGame.Statistics.TotalEjections = _currentGame.Events.Count(e => e.EventType == "PlayerKilled" && e.Description.Contains("Ejected"));
+            // Count total deaths (all dead players)
+            _currentGame.Statistics.TotalDeaths = _currentGame.Players.Count(p => !p.IsAlive);
+            
+            // Count kills from player kill counts
+            _currentGame.Statistics.TotalKills = _currentGame.Players.Sum(p => p.KillCount);
+            
+            // Count ejections
+            _currentGame.Statistics.TotalEjections = _currentGame.Players.Count(p => p.WasEjected);
             
             var totalTasks = _currentGame.Players.Sum(p => p.TotalTasks);
             var completedTasks = _currentGame.Metadata.CompletedTasks;
@@ -344,7 +570,7 @@ public static class GameTracker
 
             _currentGame.Metadata.TotalTasks = totalTasks;
             
-            _logger?.LogInfo($"Statistics calculated: {_currentGame.Statistics.TotalKills} kills, {_currentGame.Statistics.TotalEjections} ejections");
+            _logger?.LogInfo($"Statistics calculated: {_currentGame.Statistics.TotalKills} kills, {_currentGame.Statistics.TotalDeaths} deaths, {_currentGame.Statistics.TotalEjections} ejections");
         }
         catch (Exception ex)
         {
