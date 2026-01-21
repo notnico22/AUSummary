@@ -4,6 +4,8 @@
 
 Automatically tracks and analyzes your Among Us games with detailed statistics, kill tracking, and a beautiful desktop viewer.
 
+# Video
+
 
 ---
 
