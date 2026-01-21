@@ -36,10 +36,21 @@ public partial class AUSummaryPlugin : BasePlugin, IMiraPlugin
         // Initialize the game tracker
         GameTracker.Initialize(Log);
         
-        // Apply Harmony patches
+        // Apply Harmony patches for vanilla methods
         Harmony.PatchAll();
         
         Log.LogInfo($"AUSUMMARY v{Shared.AUSummaryConstants.Version} loaded successfully!");
         Log.LogInfo($"Game summaries will be saved to: {Shared.AUSummaryConstants.GetSummariesPath()}");
+        
+        // Patch TOU methods using reflection (after a delay to ensure TOU is loaded)
+        try
+        {
+            Log.LogWarning("Attempting to patch Town of Us methods...");
+            Patches.TownOfUsKillPatches.PatchTouMurderMethods(Harmony);
+        }
+        catch (Exception ex)
+        {
+            Log.LogError($"Error patching TOU methods: {ex.Message}");
+        }
     }
 }
