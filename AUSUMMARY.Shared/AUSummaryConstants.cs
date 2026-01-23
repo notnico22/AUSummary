@@ -7,7 +7,7 @@ namespace AUSUMMARY.Shared;
 public static class AUSummaryConstants
 {
 
-    public const string Version = "1.0.0";
+    public const string Version = "1.1.0";
 
 
     public const string SummaryFolderName = "AmongUsGameSummaries";
@@ -18,16 +18,31 @@ public static class AUSummaryConstants
 
     public static string GetSummariesPath()
     {
-        var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        var summariesPath = Path.Combine(documentsPath, SummaryFolderName);
-        
-    
-        if (!Directory.Exists(summariesPath))
+        try
         {
-            Directory.CreateDirectory(summariesPath);
+            var documentsPath = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            var summariesPath = Path.Combine(documentsPath, SummaryFolderName);
+            
+            // Try to create directory if it doesn't exist
+            if (!Directory.Exists(summariesPath))
+            {
+                Directory.CreateDirectory(summariesPath);
+            }
+            
+            return summariesPath;
         }
-        
-        return summariesPath;
+        catch (Exception ex)
+        {
+            // Fallback to temp directory if Documents fails
+            var tempPath = Path.Combine(Path.GetTempPath(), SummaryFolderName);
+            
+            if (!Directory.Exists(tempPath))
+            {
+                Directory.CreateDirectory(tempPath);
+            }
+            
+            return tempPath;
+        }
     }
 
 
