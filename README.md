@@ -9,12 +9,11 @@ https://github.com/user-attachments/assets/2385507f-1bf2-4581-84af-b371c0f0294d
 
 ---
 
-## ✨ What's New in v1.1.0
+## ✨ What's New in v1.1.1
 
-- **🎯 Enhanced Kill Tracking**: Sheriff kills, neutral killer abilities, specific kill types (Shot, Reaped, Mauled, etc.)
-- **🏆 Neutral Win Detection**: Detects wins for Jester, Arsonist, Werewolf, and all neutral roles
-- **✅ Improved Task Tracking**: Filters impostor fake tasks and dead player tasks for accurate statistics
-- **📱 Interactive Viewer**: Click players for death details, role breakdown with visual progress bars
+- **🪲Fixed Role Debugging Glitch
+- **🪱Fixed Parasite's Kill Condition
+- **🗺️Added Custom Map Support
 
 ---
 
