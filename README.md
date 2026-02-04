@@ -100,7 +100,12 @@ Game summaries automatically save to: `C:\Users\[YourName]\Documents\AmongUsGame
 
 ## 📝 Version History
 
-### v1.1.0 (Current)
+### v1.1.1 (Current)
+- Fixed Log Output Debugging Role Glitch
+- Added Custom Map Support
+- Fixed Parasite's Kill Condition
+
+### v1.1.0
 - Enhanced kill tracking for Sheriff and neutral killers
 - Neutral win detection with triple fallback system
 - Task tracking improvements (filters impostor fake tasks)
