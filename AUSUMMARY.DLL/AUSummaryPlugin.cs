@@ -18,6 +18,11 @@ public partial class AUSummaryPlugin : BasePlugin, IMiraPlugin
 {
     public static AUSummaryPlugin Instance { get; private set; } = null!;
     
+    /// <summary>
+    /// Enable or disable debug logging. Set to false to reduce log spam.
+    /// </summary>
+    public static bool EnableDebugLogging { get; set; } = false;
+    
     public Harmony Harmony { get; } = new(Id);
 
     public string OptionsTitleText => "AUSUMMARY";

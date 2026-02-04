@@ -61,7 +61,7 @@ public static class GameTracker
                 Description = "Game started"
             });
 
-            _logger?.LogInfo($"Game tracking started: {_currentGame.MatchId}");
+            LogDebug($"Game tracking started: {_currentGame.MatchId}");
         }
         catch (Exception ex)
         {
@@ -117,7 +117,7 @@ public static class GameTracker
             // Save to file
             SaveGameSummary();
 
-            _logger?.LogInfo($"Game tracking ended: {_currentGame.MatchId}");
+            LogDebug($"Game tracking ended: {_currentGame.MatchId}");
         }
         catch (Exception ex)
         {
@@ -149,7 +149,7 @@ public static class GameTracker
                 existingPlayer.Modifiers = modifiers;
                 existingPlayer.IsAlive = !playerInfo.IsDead;
                 
-                _logger?.LogInfo($"Updated player: {existingPlayer.PlayerName} - {role} ({team}) Modifiers: {string.Join(", ", modifiers)}");
+                LogDebug($"Updated player: {existingPlayer.PlayerName} - {role} ({team}) Modifiers: {string.Join(", ", modifiers)}");
             }
             else
             {
@@ -171,7 +171,7 @@ public static class GameTracker
                 
                 _currentGame.Players.Add(newPlayer);
                 
-                _logger?.LogInfo($"Added player: {newPlayer.PlayerName} ({colorName}) - {role} ({team}) Modifiers: {string.Join(", ", modifiers)}");
+                LogDebug($"Added player: {newPlayer.PlayerName} ({colorName}) - {role} ({team}) Modifiers: {string.Join(", ", modifiers)}");
             }
         }
         catch (Exception ex)
@@ -201,7 +201,7 @@ public static class GameTracker
                 if (existingPlayer != null && modifiers.Any())
                 {
                     existingPlayer.Modifiers = modifiers;
-                    _logger?.LogInfo($"Updated {existingPlayer.PlayerName} modifiers: {string.Join(", ", modifiers)}");
+                    LogDebug($"Updated {existingPlayer.PlayerName} modifiers: {string.Join(", ", modifiers)}");
                 }
             }
         }
@@ -233,7 +233,7 @@ public static class GameTracker
                         player.KillType = "Killed";
                 }
                 
-                _logger?.LogInfo($"Updated alive status: {player.PlayerName} = {isAlive}");
+                LogDebug($"Updated alive status: {player.PlayerName} = {isAlive}");
             }
         }
         catch (Exception ex)
@@ -270,7 +270,7 @@ public static class GameTracker
                         player.KillType = "Killed";
                     }
                     
-                    _logger?.LogInfo($"Marked {player.PlayerName} ({player.Team}) as dead (losing team)");
+                    LogDebug($"Marked {player.PlayerName} ({player.Team}) as dead (losing team)");
                 }
             }
         }
@@ -307,11 +307,11 @@ public static class GameTracker
                     if (currentKillCount < expectedKillCount)
                     {
                         killer.KillCount = expectedKillCount;
-                        _logger?.LogInfo($"Updated {killerName} kill count to {killer.KillCount}");
+                        LogDebug($"Updated {killerName} kill count to {killer.KillCount}");
                     }
                 }
 
-                _logger?.LogInfo($"Updated death info: {player.PlayerName} was {killType} by {killerName}");
+                LogDebug($"Updated death info: {player.PlayerName} was {killType} by {killerName}");
             }
         }
         catch (Exception ex)
@@ -350,7 +350,7 @@ public static class GameTracker
                 }
 
                 var statusText = player.IsAlive ? "Alive" : $"Dead ({player.KillType})";
-                _logger?.LogInfo($"Recorded death: {player.PlayerName} - {statusText}" + (killerName != null ? $" by {killerName}" : ""));
+                LogDebug($"Recorded death: {player.PlayerName} - {statusText}" + (killerName != null ? $" by {killerName}" : ""));
 
                 AddEvent(new GameEvent
                 {
@@ -416,7 +416,7 @@ public static class GameTracker
                 player.TasksCompleted++;
                 _currentGame.Metadata.CompletedTasks++;
                 
-                _logger?.LogInfo($"{player.PlayerName} completed task ({player.TasksCompleted}/{player.TotalTasks})");
+                LogDebug($"{player.PlayerName} completed task ({player.TasksCompleted}/{player.TotalTasks})");
             }
         }
         catch (Exception ex)
@@ -426,6 +426,17 @@ public static class GameTracker
     }
 
     #region Private Helper Methods
+
+    /// <summary>
+    /// Log debug information only if debug logging is enabled
+    /// </summary>
+    private static void LogDebug(string message)
+    {
+        if (AUSummaryPlugin.EnableDebugLogging)
+        {
+            _logger?.LogInfo($"[DEBUG] {message}");
+        }
+    }
 
     private static void CaptureGameMetadata()
     {
@@ -451,12 +462,20 @@ public static class GameTracker
             var shipStatus = ShipStatus.Instance;
             if (shipStatus == null) return "Unknown";
 
+            // Get the numeric value of the map type
+            var mapTypeValue = (int)shipStatus.Type;
+
             return shipStatus.Type switch
             {
                 ShipStatus.MapType.Ship => "The Skeld",
                 ShipStatus.MapType.Hq => "MIRA HQ",
                 ShipStatus.MapType.Pb => "Polus",
-                _ => shipStatus.Type.ToString()
+                _ => mapTypeValue switch
+                {
+                    3 => "The Airship", // Airship if it exists in newer versions
+                    4 => "The Fungle",  // Fungle if it exists in newer versions
+                    _ => "Custom"       // Any other custom/modded maps
+                }
             };
         }
         catch
@@ -570,7 +589,7 @@ public static class GameTracker
 
             _currentGame.Metadata.TotalTasks = totalTasks;
             
-            _logger?.LogInfo($"Statistics calculated: {_currentGame.Statistics.TotalKills} kills, {_currentGame.Statistics.TotalDeaths} deaths, {_currentGame.Statistics.TotalEjections} ejections");
+            LogDebug($"Statistics calculated: {_currentGame.Statistics.TotalKills} kills, {_currentGame.Statistics.TotalDeaths} deaths, {_currentGame.Statistics.TotalEjections} ejections");
         }
         catch (Exception ex)
         {
