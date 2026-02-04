@@ -11,9 +11,9 @@ https://github.com/user-attachments/assets/2385507f-1bf2-4581-84af-b371c0f0294d
 
 ## ✨ What's New in v1.1.1
 
-- **🪲Fixed Role Debugging Glitch
-- **🪱Fixed Parasite's Kill Condition
-- **🗺️Added Custom Map Support
+- **🪲Fixed Role Debugging Glitch**
+- **🪱Fixed Parasite's Kill Condition**
+- **🗺️Added Custom Map Support**
 
 ---
 
