@@ -8,7 +8,8 @@
   },
   "dependencies": {
     "@vercel/kv": "^3.0.0",
-    "@vercel/node": "^4.0.0"
+    "@vercel/node": "^4.0.0",
+    "mongodb": "^6.21.0"
   },
   "devDependencies": {
     "vercel": "^41.0.2"
