@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AUSUMMARY - All Games Data</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', monospace;
+            background: #0a0a0a;
+            color: #00ff00;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: #1a1a1a;
+            padding: 20px;
+            border: 2px solid #00ff00;
+            margin-bottom: 20px;
+        }
+
+        h1 {
+            color: #00ff00;
+            margin-bottom: 10px;
+        }
+
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        button {
+            background: #1a1a1a;
+            color: #00ff00;
+            border: 2px solid #00ff00;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+
+        button:hover {
+            background: #00ff00;
+            color: #0a0a0a;
+        }
+
+        .stats-summary {
+            background: #1a1a1a;
+            border: 2px solid #00ff00;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stats-summary h2 {
+            margin-bottom: 10px;
+            color: #00ff00;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .stat-item {
+            padding: 10px;
+            background: rgba(0, 255, 0, 0.1);
+            border: 1px solid #00ff00;
+        }
+
+        .stat-label {
+            color: #00aa00;
+            font-size: 12px;
+        }
+
+        .stat-value {
+            color: #00ff00;
+            font-size: 20px;
+            font-weight: bold;
+        }
+
+        .game-card {
+            background: #1a1a1a;
+            border: 2px solid #00ff00;
+            padding: 20px;
+            margin-bottom: 20px;
+            position: relative;
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #00ff00;
+        }
+
+        .game-id {
+            color: #00ff00;
+            font-weight: bold;
+        }
+
+        .game-time {
+            color: #00aa00;
+            font-size: 12px;
+        }
+
+        .game-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .info-item {
+            padding: 5px;
+        }
+
+        .info-label {
+            color: #00aa00;
+            font-size: 11px;
+        }
+
+        .info-value {
+            color: #00ff00;
+        }
+
+        .winner-crewmate {
+            color: #00ff00;
+        }
+
+        .winner-impostor {
+            color: #ff0000;
+        }
+
+        .roles-section {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #00ff00;
+        }
+
+        .roles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .role-item {
+            padding: 5px;
+            background: rgba(0, 255, 0, 0.05);
+            font-size: 12px;
+        }
+
+        .json-view {
+            background: #000000;
+            border: 1px solid #00ff00;
+            padding: 15px;
+            margin-top: 10px;
+            overflow-x: auto;
+            display: none;
+        }
+
+        .json-view pre {
+            margin: 0;
+            color: #00ff00;
+            font-size: 11px;
+        }
+
+        .toggle-json {
+            background: transparent;
+            border: 1px solid #00aa00;
+            color: #00aa00;
+            padding: 5px 10px;
+            font-size: 11px;
+            margin-top: 10px;
+        }
+
+        .toggle-json:hover {
+            background: #00aa00;
+            color: #000;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #00ff00;
+            font-size: 18px;
+        }
+
+        .error {
+            background: #1a0000;
+            border: 2px solid #ff0000;
+            color: #ff0000;
+            padding: 20px;
+            margin: 20px 0;
+        }
+
+        .search-box {
+            width: 100%;
+            background: #1a1a1a;
+            color: #00ff00;
+            border: 2px solid #00ff00;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .filter-tags {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+
+        .filter-tag {
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid #00ff00;
+            padding: 5px 15px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.3s;
+        }
+
+        .filter-tag:hover {
+            background: #00ff00;
+            color: #0a0a0a;
+        }
+
+        .filter-tag.active {
+            background: #00ff00;
+            color: #0a0a0a;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚡ AUSUMMARY - RAW DATA VIEWER ⚡</h1>
+            <p style="color: #00aa00;">All game statistics - Developer/Admin view</p>
+        </header>
+
+        <div class="controls">
+            <button onclick="loadGames()">🔄 Refresh</button>
+            <button onclick="populateTestData()">🧪 Add Test Data</button>
+            <button onclick="exportJSON()">💾 Export JSON</button>
+            <button onclick="clearFilters()">🗑️ Clear Filters</button>
+            <button onclick="window.location.href='/'">📊 Back to Dashboard</button>
+        </div>
+
+        <input type="text" class="search-box" id="searchBox" placeholder="Search by map, winner, or match ID...">
+
+        <div class="filter-tags">
+            <div class="filter-tag" data-filter="map:The Skeld">The Skeld</div>
+            <div class="filter-tag" data-filter="map:MIRA HQ">MIRA HQ</div>
+            <div class="filter-tag" data-filter="map:Polus">Polus</div>
+            <div class="filter-tag" data-filter="map:The Airship">The Airship</div>
+            <div class="filter-tag" data-filter="map:The Fungle">The Fungle</div>
+            <div class="filter-tag" data-filter="winner:Crewmate">Crewmate Wins</div>
+            <div class="filter-tag" data-filter="winner:Impostor">Impostor Wins</div>
+        </div>
+
+        <div id="loading" class="loading">
+            <p>LOADING DATA...</p>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div id="statsSummary" style="display: none;"></div>
+        
+        <div id="gamesContainer"></div>
+    </div>
+
+    <script>
+        let allGames = [];
+        let filteredGames = [];
+        let activeFilters = {};
+
+        async function loadGames() {
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('error').style.display = 'none';
+
+            try {
+                const response = await fetch('/api/analytics');
+                const data = await response.json();
+
+                allGames = data.recentGames || [];
+                
+                // Try to get ALL games from a new endpoint
+                try {
+                    const allResponse = await fetch('/api/all-games');
+                    if (allResponse.ok) {
+                        const allData = await allResponse.json();
+                        allGames = allData.games || allGames;
+                    }
+                } catch {
+                    // Use recent games if all-games endpoint doesn't exist
+                }
+
+                filteredGames = [...allGames];
+                
+                document.getElementById('loading').style.display = 'none';
+                displayStats(data);
+                displayGames();
+
+            } catch (error) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error').textContent = `ERROR: ${error.message}`;
+                console.error(error);
+            }
+        }
+
+        function displayStats(data) {
+            const statsDiv = document.getElementById('statsSummary');
+            statsDiv.style.display = 'block';
+            
+            statsDiv.innerHTML = `
+                <div class="stats-summary">
+                    <h2>📈 GLOBAL STATISTICS</h2>
+                    <div class="stat-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">TOTAL GAMES</div>
+                            <div class="stat-value">${data.totalGames || 0}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">TOTAL PLAYERS</div>
+                            <div class="stat-value">${data.totalPlayers || 0}</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">CREWMATE WINS</div>
+                            <div class="stat-value">${((data.winRates?.crewmate || 0) * 100).toFixed(1)}%</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">IMPOSTOR WINS</div>
+                            <div class="stat-value">${((data.winRates?.impostor || 0) * 100).toFixed(1)}%</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">AVG DURATION</div>
+                            <div class="stat-value">${Math.floor((data.averageGameDuration || 0) / 60)}m</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">TOTAL KILLS</div>
+                            <div class="stat-value">${data.totalKills || 0}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function displayGames() {
+            const container = document.getElementById('gamesContainer');
+            
+            if (filteredGames.length === 0) {
+                container.innerHTML = '<div class="loading">NO GAMES FOUND</div>';
+                return;
+            }
+
+            container.innerHTML = filteredGames.map((game, index) => {
+                const date = new Date(game.timestamp);
+                const duration = Math.floor(game.gameDuration / 60);
+                const winnerClass = game.winningTeam === 'Crewmate' ? 'winner-crewmate' : 'winner-impostor';
+                
+                return `
+                    <div class="game-card">
+                        <div class="game-header">
+                            <div>
+                                <div class="game-id">GAME #${filteredGames.length - index}</div>
+                                <div class="game-id" style="font-size: 11px; color: #00aa00;">${game.matchId || 'N/A'}</div>
+                            </div>
+                            <div class="game-time">${date.toLocaleString()}</div>
+                        </div>
+
+                        <div class="game-info">
+                            <div class="info-item">
+                                <div class="info-label">MAP</div>
+                                <div class="info-value">${game.mapName || 'Unknown'}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">PLAYERS</div>
+                                <div class="info-value">${game.playerCount || 0}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">WINNER</div>
+                                <div class="info-value ${winnerClass}">${game.winningTeam || 'Unknown'}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">DURATION</div>
+                                <div class="info-value">${duration}m ${Math.floor(game.gameDuration % 60)}s</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">KILLS</div>
+                                <div class="info-value">${game.totalKills || 0}</div>
+                            </div>
+                            <div class="info-item">
+                                <div class="info-label">TASKS</div>
+                                <div class="info-value">${Math.round((game.taskCompletionRate || 0) * 100)}%</div>
+                            </div>
+                        </div>
+
+                        <button class="toggle-json" onclick="toggleJSON(${index})">
+                            VIEW RAW JSON
+                        </button>
+                        <div class="json-view" id="json-${index}">
+                            <pre>${JSON.stringify(game, null, 2)}</pre>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function toggleJSON(index) {
+            const jsonDiv = document.getElementById(`json-${index}`);
+            jsonDiv.style.display = jsonDiv.style.display === 'none' ? 'block' : 'none';
+        }
+
+        async function populateTestData() {
+            try {
+                const response = await fetch('/api/populate-test-data');
+                const data = await response.json();
+                alert(`✅ ${data.message}\nGames added: ${data.gamesAdded}`);
+                loadGames();
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+        }
+
+        function exportJSON() {
+            const dataStr = JSON.stringify(allGames, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `ausummary-games-${Date.now()}.json`;
+            a.click();
+        }
+
+        function clearFilters() {
+            activeFilters = {};
+            document.querySelectorAll('.filter-tag').forEach(tag => {
+                tag.classList.remove('active');
+            });
+            document.getElementById('searchBox').value = '';
+            applyFilters();
+        }
+
+        function applyFilters() {
+            let games = [...allGames];
+
+            // Apply filter tags
+            Object.keys(activeFilters).forEach(key => {
+                const [type, value] = key.split(':');
+                games = games.filter(game => {
+                    if (type === 'map') return game.mapName === value;
+                    if (type === 'winner') return game.winningTeam === value;
+                    return true;
+                });
+            });
+
+            // Apply search
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            if (searchTerm) {
+                games = games.filter(game => 
+                    (game.mapName || '').toLowerCase().includes(searchTerm) ||
+                    (game.winningTeam || '').toLowerCase().includes(searchTerm) ||
+                    (game.matchId || '').toLowerCase().includes(searchTerm)
+                );
+            }
+
+            filteredGames = games;
+            displayGames();
+        }
+
+        // Event listeners
+        document.getElementById('searchBox').addEventListener('input', applyFilters);
+
+        document.querySelectorAll('.filter-tag').forEach(tag => {
+            tag.addEventListener('click', function() {
+                const filter = this.dataset.filter;
+                
+                if (activeFilters[filter]) {
+                    delete activeFilters[filter];
+                    this.classList.remove('active');
+                } else {
+                    activeFilters[filter] = true;
+                    this.classList.add('active');
+                }
+                
+                applyFilters();
+            });
+        });
+
+        // Load on page load
+        loadGames();
+    </script>
+</body>
+</html>
