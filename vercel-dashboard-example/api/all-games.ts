@@ -1,27 +1,36 @@
+import { kv } from '@vercel/kv';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 /**
- * Returns all stored game data
- * Used by the all-games.html admin panel
+ * Fetch all games from Vercel KV storage
  */
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
-    // Import the in-memory storage
-    const { gamesData } = await import('./stats');
-
-    // Enable CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'GET');
 
-    // Return all games sorted by timestamp (newest first)
-    const sortedGames = [...gamesData].sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
+    // Get all game IDs sorted by timestamp (newest first)
+    const gameIds = await kv.zrange<string[]>('games:all', 0, -1, { rev: true });
+    
+    if (!gameIds || gameIds.length === 0) {
+      return res.status(200).json({
+        success: true,
+        total: 0,
+        games: []
+      });
+    }
+
+    // Fetch all games in parallel
+    const gamePromises = gameIds.map(id => kv.get(`game:${id}`));
+    const games = await Promise.all(gamePromises);
+
+    // Filter out any null values
+    const validGames = games.filter(g => g !== null);
 
     return res.status(200).json({
       success: true,
-      total: sortedGames.length,
-      games: sortedGames
+      total: validGames.length,
+      games: validGames
     });
 
   } catch (error) {
