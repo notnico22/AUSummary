@@ -1,12 +1,11 @@
-extern alias NewtonsoftJson;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using AUSUMMARY.Shared;
 using AUSUMMARY.Shared.Models;
 using BepInEx.Logging;
-using JsonConvert = NewtonsoftJson::Newtonsoft.Json.JsonConvert;
-using Formatting = NewtonsoftJson::Newtonsoft.Json.Formatting;
 
 namespace AUSUMMARY.DLL;
 
@@ -71,11 +70,14 @@ public static class GameTracker
             AddGameEvent("GameEnd", $"Match ended: {winningTeam} wins ({winCondition})");
 
             // Save summary to file
-            SaveGameSummary();
-            
+            var savedFilePath = SaveGameSummary();
+
             // Send to Vercel for global stats (async, non-blocking)
-            _ = VercelStatsSender.SendGameStatsAsync(_currentGame);
-            
+            // Run on background thread to avoid IL2CPP issues
+            var currentGameCopy = _currentGame;
+            var savedFilePathCopy = savedFilePath;
+            Task.Run(async () => await VercelStatsSender.SendGameStatsAsync(currentGameCopy, savedFilePathCopy));
+
             DebugLog("Game summary saved successfully");
         }
         catch (Exception ex)
@@ -99,10 +101,10 @@ public static class GameTracker
 
             // Capture metadata
             CaptureGameMetadata();
-            
+
             // Capture all players
             CapturePlayers();
-            
+
             AddGameEvent("GameStart", "Match began");
             DebugLog($"Tracking {_currentGame.Players.Count} players");
         }
@@ -137,11 +139,14 @@ public static class GameTracker
             AddGameEvent("GameEnd", $"Match ended: {endReason}");
 
             // Save summary to file
-            SaveGameSummary();
-            
+            var savedFilePath = SaveGameSummary();
+
             // Send to Vercel for global stats (async, non-blocking)
-            _ = VercelStatsSender.SendGameStatsAsync(_currentGame);
-            
+            // Run on background thread to avoid IL2CPP issues
+            var currentGameCopy = _currentGame;
+            var savedFilePathCopy = savedFilePath;
+            Task.Run(async () => await VercelStatsSender.SendGameStatsAsync(currentGameCopy, savedFilePathCopy));
+
             DebugLog("Game summary saved successfully");
         }
         catch (Exception ex)
@@ -183,7 +188,7 @@ public static class GameTracker
             if (shipStatus == null) return;
 
             _currentGame.Metadata.MapName = GetMapName(shipStatus.Type);
-            
+
             // FIXED: GameMode detection - use TryGet pattern or check type
             try
             {
@@ -212,7 +217,7 @@ public static class GameTracker
             {
                 _currentGame.Metadata.GameMode = "Classic";
             }
-            
+
             _currentGame.Metadata.ModVersion = AUSummaryConstants.Version;
 
             DebugLog($"Map: {_currentGame.Metadata.MapName}, Mode: {_currentGame.Metadata.GameMode}");
@@ -333,10 +338,10 @@ public static class GameTracker
             snapshot.TimeOfDeath = GetGameTime();
             snapshot.DeathCause = killType ?? deathCause;
 
-            var description = string.IsNullOrEmpty(killerName) 
+            var description = string.IsNullOrEmpty(killerName)
                 ? $"{snapshot.PlayerName} died: {killType}"
                 : $"{snapshot.PlayerName} was {killType} by {killerName}";
-            
+
             AddGameEvent("PlayerKilled", description, new[] { snapshot.PlayerName });
             DebugLog($"Player death: {description}");
         }
@@ -358,10 +363,10 @@ public static class GameTracker
         try
         {
             var eventType = isEmergency ? "MeetingCalled" : "BodyReported";
-            var description = isEmergency 
+            var description = isEmergency
                 ? $"{callerName} called an emergency meeting"
                 : $"{callerName} reported a body";
-            
+
             AddGameEvent(eventType, description, new[] { callerName });
             DebugLog($"Meeting: {description}");
         }
@@ -644,7 +649,7 @@ public static class GameTracker
     {
         // FIXED: Use reflection to handle different Among Us versions
         var mapName = mapType.ToString();
-        
+
         return mapName switch
         {
             "Ship" => "The Skeld",
@@ -664,25 +669,30 @@ public static class GameTracker
         return colorId >= 0 && colorId < colors.Length ? colors[colorId] : "Unknown";
     }
 
-    private static void SaveGameSummary()
+    private static string? SaveGameSummary()
     {
         try
         {
             var summariesPath = AUSummaryConstants.GetSummariesPath();
             Directory.CreateDirectory(summariesPath);
 
-            var fileName = $"game_{_currentGame.Timestamp:yyyyMMdd_HHmmss}_{_currentGame.MatchId.Substring(0, 8)}.json";
+            var fileName = $"GameSummary_{_currentGame.Timestamp:yyyyMMdd_HHmmss}_{_currentGame.MatchId.Substring(0, 8)}.json";
             var filePath = Path.Combine(summariesPath, fileName);
 
-            // Use the aliased JsonConvert to avoid conflicts
-            var json = JsonConvert.SerializeObject(_currentGame, Formatting.Indented);
+            // Use System.Text.Json instead to avoid IL2CPP conflicts
+            var json = System.Text.Json.JsonSerializer.Serialize(_currentGame, new System.Text.Json.JsonSerializerOptions
+            {
+                WriteIndented = true
+            });
             File.WriteAllText(filePath, json);
 
             _log?.LogInfo($"Game summary saved: {fileName}");
+            return filePath;
         }
         catch (Exception ex)
         {
             _log?.LogError($"Error saving game summary: {ex.Message}\n{ex.StackTrace}");
+            return null;
         }
     }
 

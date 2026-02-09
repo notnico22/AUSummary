@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AUSUMMARY - Global Statistics</title>
+    <title>AUSUMMARY - Global Statistics Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
         * {
@@ -21,7 +21,7 @@
         }
 
         .container {
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
         }
 
@@ -48,6 +48,48 @@
             font-size: 1.2rem;
         }
 
+        /* Navigation Tabs */
+        .nav-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab-btn {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: #94a3b8;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: 2px solid transparent;
+        }
+
+        .tab-btn:hover {
+            color: #ffffff;
+            border-color: #0ea5e9;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+            color: white;
+            border-color: transparent;
+        }
+
+        /* View Containers */
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+        }
+
+        /* Stats Grid */
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
@@ -87,6 +129,7 @@
             letter-spacing: 1px;
         }
 
+        /* Charts */
         .charts-grid {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
@@ -108,6 +151,98 @@
             font-size: 1.5rem;
         }
 
+        /* Search Section */
+        .search-container {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .search-box {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .search-input {
+            flex: 1;
+            min-width: 250px;
+            padding: 15px 20px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: #ffffff;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #0ea5e9;
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .search-input::placeholder {
+            color: #64748b;
+        }
+
+        .search-btn {
+            background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .search-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(14, 165, 233, 0.4);
+        }
+
+        .search-btn:active {
+            transform: translateY(0);
+        }
+
+        /* Player Stats Display */
+        .player-stats {
+            display: none;
+        }
+
+        .player-stats.active {
+            display: block;
+        }
+
+        .player-header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .player-name {
+            font-size: 2.5rem;
+            font-weight: bold;
+            background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 10px;
+        }
+
+        .player-subtitle {
+            color: #94a3b8;
+            font-size: 1.1rem;
+        }
+
+        /* Tables */
         .games-table-container {
             background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
             padding: 30px;
@@ -121,6 +256,29 @@
             margin-bottom: 20px;
             color: #e2e8f0;
             font-size: 1.5rem;
+        }
+
+        .table-filters {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-select {
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 0.95rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: #0ea5e9;
         }
 
         table {
@@ -152,6 +310,7 @@
 
         tbody tr {
             transition: background 0.2s ease;
+            cursor: pointer;
         }
 
         tbody tr:hover {
@@ -181,6 +340,27 @@
             color: white;
         }
 
+        .badge-win {
+            background: #10b981;
+            color: white;
+        }
+
+        .badge-loss {
+            background: #64748b;
+            color: white;
+        }
+
+        .badge-alive {
+            background: #10b981;
+            color: white;
+        }
+
+        .badge-dead {
+            background: #ef4444;
+            color: white;
+        }
+
+        /* Loading & Error */
         .loading {
             text-align: center;
             padding: 60px;
@@ -211,6 +391,13 @@
             margin: 20px 0;
         }
 
+        .no-results {
+            text-align: center;
+            padding: 60px;
+            color: #94a3b8;
+            font-size: 1.2rem;
+        }
+
         .refresh-btn {
             background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
             color: white;
@@ -230,10 +417,6 @@
             box-shadow: 0 5px 20px rgba(14, 165, 233, 0.4);
         }
 
-        .refresh-btn:active {
-            transform: translateY(0);
-        }
-
         @media (max-width: 768px) {
             h1 {
                 font-size: 2rem;
@@ -250,6 +433,39 @@
             th, td {
                 padding: 10px;
             }
+
+            .search-box {
+                flex-direction: column;
+            }
+
+            .search-input {
+                width: 100%;
+            }
+        }
+
+        .role-breakdown {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .role-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .role-name {
+            color: #0ea5e9;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .role-stats {
+            color: #94a3b8;
+            font-size: 0.9rem;
         }
     </style>
 </head>
@@ -260,83 +476,175 @@
             <p class="subtitle">Global Statistics Dashboard</p>
         </header>
 
-        <div id="loading" class="loading">
-            <div class="spinner"></div>
-            <p>Loading statistics...</p>
+        <!-- Navigation Tabs -->
+        <div class="nav-tabs">
+            <button class="tab-btn active" onclick="showView('overview')">📊 Overview</button>
+            <button class="tab-btn" onclick="showView('player-search')">🔍 Player Search</button>
+            <button class="tab-btn" onclick="showView('all-games')">🎮 All Games</button>
         </div>
 
-        <div id="error" class="error" style="display: none;"></div>
-
-        <div id="content" style="display: none;">
-            <button class="refresh-btn" onclick="loadData()">🔄 Refresh Data</button>
-
-            <!-- Main Statistics -->
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Total Games</div>
-                    <div class="stat-value" id="totalGames">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Total Players</div>
-                    <div class="stat-value" id="totalPlayers">0</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Crewmate Wins</div>
-                    <div class="stat-value" id="crewWinRate">0%</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Impostor Wins</div>
-                    <div class="stat-value" id="impWinRate">0%</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Avg Game Duration</div>
-                    <div class="stat-value" id="avgDuration">0m</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Total Kills</div>
-                    <div class="stat-value" id="totalKills">0</div>
-                </div>
+        <!-- Overview View -->
+        <div id="overview-view" class="view active">
+            <div id="loading" class="loading">
+                <div class="spinner"></div>
+                <p>Loading statistics...</p>
             </div>
 
-            <!-- Charts -->
-            <div class="charts-grid">
-                <div class="chart-container">
-                    <h2>📊 Popular Maps</h2>
-                    <canvas id="mapChart"></canvas>
+            <div id="error" class="error" style="display: none;"></div>
+
+            <div id="content" style="display: none;">
+                <button class="refresh-btn" onclick="loadOverviewData()">🔄 Refresh Data</button>
+
+                <!-- Main Statistics -->
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Total Games</div>
+                        <div class="stat-value" id="totalGames">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Players</div>
+                        <div class="stat-value" id="totalPlayers">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Crewmate Wins</div>
+                        <div class="stat-value" id="crewWinRate">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Impostor Wins</div>
+                        <div class="stat-value" id="impWinRate">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Neutral Wins</div>
+                        <div class="stat-value" id="neutralWinRate">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Avg Game Duration</div>
+                        <div class="stat-value" id="avgDuration">0m</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Kills</div>
+                        <div class="stat-value" id="totalKills">0</div>
+                    </div>
                 </div>
-                <div class="chart-container">
-                    <h2>🏆 Win Rate Distribution</h2>
-                    <canvas id="winRateChart"></canvas>
+
+                <!-- Charts -->
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <h2>📊 Popular Maps</h2>
+                        <canvas id="mapChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h2>🏆 Win Rate Distribution</h2>
+                        <canvas id="winRateChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h2>👥 Most Played Roles</h2>
+                        <canvas id="rolesChart"></canvas>
+                    </div>
+                    <div class="chart-container">
+                        <h2>📈 Games Over Time</h2>
+                        <canvas id="timelineChart"></canvas>
+                    </div>
                 </div>
-                <div class="chart-container">
-                    <h2>👥 Most Played Roles</h2>
-                    <canvas id="rolesChart"></canvas>
-                </div>
-                <div class="chart-container">
-                    <h2>📈 Games Over Time</h2>
-                    <canvas id="timelineChart"></canvas>
+
+                <!-- Recent Games Table -->
+                <div class="games-table-container">
+                    <h2>🕐 Recent Games</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Map</th>
+                                <th>Players</th>
+                                <th>Winner</th>
+                                <th>Duration</th>
+                                <th>Kills</th>
+                                <th>Tasks</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gamesTableBody">
+                            <tr>
+                                <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">
+                                    No games yet...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
+        </div>
 
-            <!-- Recent Games Table -->
+        <!-- Player Search View -->
+        <div id="player-search-view" class="view">
+            <div class="search-container">
+                <h2 style="margin-bottom: 20px; color: #e2e8f0;">🔍 Search for a Player</h2>
+                <div class="search-box">
+                    <input 
+                        type="text" 
+                        id="playerSearchInput" 
+                        class="search-input" 
+                        placeholder="Enter player name..."
+                        onkeypress="if(event.key==='Enter') searchPlayer()"
+                    >
+                    <button class="search-btn" onclick="searchPlayer()">Search</button>
+                </div>
+
+                <div id="playerSearchLoading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Searching...</p>
+                </div>
+
+                <div id="playerSearchError" class="error" style="display: none;"></div>
+                <div id="playerSearchNoResults" class="no-results" style="display: none;">
+                    No results found. Try a different player name.
+                </div>
+
+                <div id="playerStats" class="player-stats">
+                    <!-- Player stats will be inserted here -->
+                </div>
+            </div>
+        </div>
+
+        <!-- All Games View -->
+        <div id="all-games-view" class="view">
             <div class="games-table-container">
-                <h2>🕐 Recent Games</h2>
+                <h2>🎮 All Games</h2>
+                
+                <div class="table-filters">
+                    <select id="mapFilterAllGames" class="filter-select" onchange="filterAllGames()">
+                        <option value="">All Maps</option>
+                    </select>
+                    <select id="winnerFilterAllGames" class="filter-select" onchange="filterAllGames()">
+                        <option value="">All Winners</option>
+                        <option value="Crewmate">Crewmate Wins</option>
+                        <option value="Impostor">Impostor Wins</option>
+                        <option value="Neutral">Neutral Wins</option>
+                    </select>
+                    <button class="search-btn" onclick="loadAllGames()" style="margin-left: auto;">🔄 Refresh</button>
+                </div>
+
+                <div id="allGamesLoading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Loading all games...</p>
+                </div>
+
                 <table>
                     <thead>
                         <tr>
                             <th>Date</th>
                             <th>Map</th>
+                            <th>Mode</th>
                             <th>Players</th>
                             <th>Winner</th>
+                            <th>Condition</th>
                             <th>Duration</th>
                             <th>Kills</th>
-                            <th>Tasks</th>
                         </tr>
                     </thead>
-                    <tbody id="gamesTableBody">
+                    <tbody id="allGamesTableBody">
                         <tr>
-                            <td colspan="7" style="text-align: center; padding: 40px; color: #94a3b8;">
-                                No games yet...
+                            <td colspan="8" style="text-align: center; padding: 40px; color: #94a3b8;">
+                                Click refresh to load all games
                             </td>
                         </tr>
                     </tbody>
@@ -347,8 +655,27 @@
 
     <script>
         let charts = {};
+        let allGamesData = [];
+        let currentView = 'overview';
 
-        async function loadData() {
+        function showView(viewName) {
+            // Hide all views
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            // Show selected view
+            document.getElementById(viewName + '-view').classList.add('active');
+            event.target.classList.add('active');
+            
+            currentView = viewName;
+            
+            // Load data for the view if needed
+            if (viewName === 'all-games' && allGamesData.length === 0) {
+                loadAllGames();
+            }
+        }
+
+        async function loadOverviewData() {
             const loading = document.getElementById('loading');
             const error = document.getElementById('error');
             const content = document.getElementById('content');
@@ -388,6 +715,8 @@
                 `${((data.winRates?.crewmate || 0) * 100).toFixed(1)}%`;
             document.getElementById('impWinRate').textContent = 
                 `${((data.winRates?.impostor || 0) * 100).toFixed(1)}%`;
+            document.getElementById('neutralWinRate').textContent = 
+                `${((data.winRates?.neutral || 0) * 100).toFixed(1)}%`;
             
             const avgSeconds = data.averageGameDuration || 0;
             const minutes = Math.floor(avgSeconds / 60);
@@ -429,13 +758,33 @@
 
             // Win Rate Chart
             const winRates = data.winRates || {};
+            const winRateLabels = [];
+            const winRateData = [];
+            const winRateColors = [];
+            
+            if (winRates.crewmate > 0) {
+                winRateLabels.push('Crewmates');
+                winRateData.push(winRates.crewmate);
+                winRateColors.push('#10b981');
+            }
+            if (winRates.impostor > 0) {
+                winRateLabels.push('Impostors');
+                winRateData.push(winRates.impostor);
+                winRateColors.push('#ef4444');
+            }
+            if (winRates.neutral > 0) {
+                winRateLabels.push('Neutrals');
+                winRateData.push(winRates.neutral);
+                winRateColors.push('#6366f1');
+            }
+            
             charts.winRate = new Chart(document.getElementById('winRateChart'), {
                 type: 'pie',
                 data: {
-                    labels: ['Crewmates', 'Impostors'],
+                    labels: winRateLabels,
                     datasets: [{
-                        data: [winRates.crewmate || 0, winRates.impostor || 0],
-                        backgroundColor: ['#10b981', '#ef4444']
+                        data: winRateData,
+                        backgroundColor: winRateColors
                     }]
                 },
                 options: {
@@ -477,7 +826,7 @@
                 }
             });
 
-            // Timeline Chart (games per day)
+            // Timeline Chart
             const timelineData = data.gamesPerDay || {};
             charts.timeline = new Chart(document.getElementById('timelineChart'), {
                 type: 'line',
@@ -528,7 +877,9 @@
 
             tbody.innerHTML = games.map(game => {
                 const date = new Date(game.timestamp);
-                const duration = Math.floor(game.gameDuration / 60);
+                const gameDuration = game.gameDuration || 0;
+                const minutes = Math.floor(gameDuration / 60);
+                const seconds = Math.floor(gameDuration % 60);
                 const winnerClass = game.winningTeam === 'Crewmate' ? 'badge-crewmate' : 
                                    game.winningTeam === 'Impostor' ? 'badge-impostor' : 
                                    'badge-neutral';
@@ -536,22 +887,270 @@
                 return `
                     <tr>
                         <td>${date.toLocaleDateString()} ${date.toLocaleTimeString()}</td>
-                        <td>${game.mapName}</td>
-                        <td>${game.playerCount}</td>
-                        <td><span class="badge ${winnerClass}">${game.winningTeam}</span></td>
-                        <td>${duration}m ${Math.floor(game.gameDuration % 60)}s</td>
-                        <td>${game.totalKills}</td>
-                        <td>${Math.round(game.taskCompletionRate * 100)}%</td>
+                        <td>${game.mapName || 'Unknown'}</td>
+                        <td>${game.playerCount || 0}</td>
+                        <td><span class="badge ${winnerClass}">${game.winningTeam || 'Unknown'}</span></td>
+                        <td>${minutes}m ${seconds}s</td>
+                        <td>${game.totalKills || 0}</td>
+                        <td>${Math.round((game.taskCompletionRate || 0) * 100)}%</td>
                     </tr>
                 `;
             }).join('');
         }
 
-        // Load data on page load
-        loadData();
+        async function searchPlayer() {
+            const playerName = document.getElementById('playerSearchInput').value.trim();
+            
+            if (!playerName) {
+                alert('Please enter a player name');
+                return;
+            }
 
-        // Auto-refresh every 30 seconds
-        setInterval(loadData, 30000);
+            const loading = document.getElementById('playerSearchLoading');
+            const error = document.getElementById('playerSearchError');
+            const noResults = document.getElementById('playerSearchNoResults');
+            const stats = document.getElementById('playerStats');
+
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            noResults.style.display = 'none';
+            stats.classList.remove('active');
+
+            try {
+                const response = await fetch(`/api/player-lookup?name=${encodeURIComponent(playerName)}`);
+                
+                loading.style.display = 'none';
+
+                if (response.status === 404) {
+                    noResults.style.display = 'block';
+                    return;
+                }
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                displayPlayerStats(data, playerName);
+
+            } catch (err) {
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.textContent = `Error searching for player: ${err.message}`;
+                console.error('Error:', err);
+            }
+        }
+
+        function displayPlayerStats(data, playerName) {
+            const statsContainer = document.getElementById('playerStats');
+            
+            const html = `
+                <div class="player-header">
+                    <div class="player-name">${playerName}</div>
+                    <div class="player-subtitle">${data.totalGames} games played</div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Win Rate</div>
+                        <div class="stat-value">${data.winRate}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Survival Rate</div>
+                        <div class="stat-value">${data.survivalRate}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Kills</div>
+                        <div class="stat-value">${data.statistics.totalKills}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Deaths</div>
+                        <div class="stat-value">${data.statistics.totalDeaths}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">K/D Ratio</div>
+                        <div class="stat-value">${data.statistics.killDeathRatio}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Task Completion</div>
+                        <div class="stat-value">${data.statistics.taskCompletionRate}</div>
+                    </div>
+                </div>
+
+                <div class="games-table-container" style="margin-top: 30px;">
+                    <h2>🎭 Role Distribution</h2>
+                    <div class="role-breakdown">
+                        ${Object.entries(data.roleDistribution).map(([role, count]) => `
+                            <div class="role-item">
+                                <div class="role-name">${role}</div>
+                                <div class="role-stats">${count} games (${((count / data.totalGames) * 100).toFixed(1)}%)</div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="games-table-container" style="margin-top: 30px;">
+                    <h2>👥 Team Statistics</h2>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-label">Crewmate Games</div>
+                            <div class="stat-value">${data.teamDistribution.Crewmate || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Impostor Games</div>
+                            <div class="stat-value">${data.teamDistribution.Impostor || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Impostor Win Rate</div>
+                            <div class="stat-value">${data.impostorStats.impostorWinRate}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="games-table-container" style="margin-top: 30px;">
+                    <h2>🕐 Recent Games</h2>
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Map</th>
+                                <th>Role</th>
+                                <th>Team</th>
+                                <th>Result</th>
+                                <th>Status</th>
+                                <th>Kills</th>
+                                <th>Tasks</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${data.recentGames.map(game => {
+                                const date = new Date(game.timestamp);
+                                const resultClass = game.won ? 'badge-win' : 'badge-loss';
+                                const statusClass = game.survived ? 'badge-alive' : 'badge-dead';
+                                const teamClass = game.team === 'Crewmate' ? 'badge-crewmate' : 
+                                                 game.team === 'Impostor' ? 'badge-impostor' : 
+                                                 'badge-neutral';
+                                
+                                return `
+                                    <tr>
+                                        <td>${date.toLocaleDateString()} ${date.toLocaleTimeString()}</td>
+                                        <td>${game.map}</td>
+                                        <td>${game.role}</td>
+                                        <td><span class="badge ${teamClass}">${game.team}</span></td>
+                                        <td><span class="badge ${resultClass}">${game.won ? 'Won' : 'Lost'}</span></td>
+                                        <td><span class="badge ${statusClass}">${game.survived ? 'Survived' : 'Died'}</span></td>
+                                        <td>${game.kills}</td>
+                                        <td>${game.tasksCompleted}</td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            statsContainer.innerHTML = html;
+            statsContainer.classList.add('active');
+        }
+
+        async function loadAllGames() {
+            const loading = document.getElementById('allGamesLoading');
+            const tbody = document.getElementById('allGamesTableBody');
+            const mapFilter = document.getElementById('mapFilterAllGames');
+
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch('/api/all-games');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                allGamesData = data.games || [];
+                
+                loading.style.display = 'none';
+
+                // Populate map filter
+                const maps = [...new Set(allGamesData.map(g => g.metadata?.mapName).filter(Boolean))];
+                mapFilter.innerHTML = '<option value="">All Maps</option>' + 
+                    maps.map(m => `<option value="${m}">${m}</option>`).join('');
+
+                filterAllGames();
+
+            } catch (err) {
+                loading.style.display = 'none';
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 40px; color: #ef4444;">
+                            Error: ${err.message}
+                        </td>
+                    </tr>
+                `;
+                console.error('Error:', err);
+            }
+        }
+
+        function filterAllGames() {
+            const mapFilter = document.getElementById('mapFilterAllGames').value;
+            const winnerFilter = document.getElementById('winnerFilterAllGames').value;
+            const tbody = document.getElementById('allGamesTableBody');
+
+            let filtered = allGamesData;
+
+            if (mapFilter) {
+                filtered = filtered.filter(g => g.metadata?.mapName === mapFilter);
+            }
+
+            if (winnerFilter) {
+                filtered = filtered.filter(g => g.winner?.winningTeam === winnerFilter);
+            }
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" style="text-align: center; padding: 40px; color: #94a3b8;">
+                            No games match the selected filters
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(game => {
+                const date = new Date(game.timestamp);
+                const gameDuration = game.metadata?.gameDuration || 0;
+                const minutes = Math.floor(gameDuration / 60);
+                const seconds = Math.floor(gameDuration % 60);
+                const winnerClass = game.winner?.winningTeam === 'Crewmate' ? 'badge-crewmate' : 
+                                   game.winner?.winningTeam === 'Impostor' ? 'badge-impostor' : 
+                                   'badge-neutral';
+                
+                return `
+                    <tr>
+                        <td>${date.toLocaleDateString()} ${date.toLocaleTimeString()}</td>
+                        <td>${game.metadata?.mapName || 'Unknown'}</td>
+                        <td>${game.metadata?.gameMode || 'Classic'}</td>
+                        <td>${game.metadata?.playerCount || 0}</td>
+                        <td><span class="badge ${winnerClass}">${game.winner?.winningTeam || 'Unknown'}</span></td>
+                        <td>${game.winner?.winCondition || 'N/A'}</td>
+                        <td>${minutes}m ${seconds}s</td>
+                        <td>${game.statistics?.totalKills || 0}</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        // Load overview data on page load
+        loadOverviewData();
+
+        // Auto-refresh overview every 30 seconds
+        setInterval(() => {
+            if (currentView === 'overview') {
+                loadOverviewData();
+            }
+        }, 30000);
     </script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using BepInEx;
 using BepInEx.Configuration;
@@ -6,6 +7,7 @@ using BepInEx.Unity.IL2CPP;
 using HarmonyLib;
 using MiraAPI.PluginLoading;
 using AUSUMMARY.Shared;
+using UnityEngine;
 
 namespace AUSUMMARY.DLL;
 
@@ -46,7 +48,7 @@ public partial class AUSummaryPlugin : BasePlugin, IMiraPlugin
         // Setup configuration
         _checkForUpdates = Config.Bind("General", "CheckForUpdates", true, 
             "Check for mod updates on startup");
-        _sendStatsToVercel = Config.Bind("General", "SendAnonymousStats", false, 
+        _sendStatsToVercel = Config.Bind("General", "SendAnonymousStats", true, 
             "Send anonymous game statistics to global dashboard (helps improve the mod!)");
         
         // Initialize the game tracker
@@ -58,6 +60,13 @@ public partial class AUSummaryPlugin : BasePlugin, IMiraPlugin
         Log.LogInfo($"AUSUMMARY v{Shared.AUSummaryConstants.Version} loaded successfully!");
         Log.LogInfo($"Game summaries will be saved to: {Shared.AUSummaryConstants.GetSummariesPath()}");
         
+        // Get or create user ID
+        if (_sendStatsToVercel.Value)
+        {
+            var userId = VercelStatsSender.GetOrCreateUserId();
+            Log.LogInfo($"User ID: {userId}");
+        }
+        
         // Patch TOU methods using reflection (after a delay to ensure TOU is loaded)
         try
         {
@@ -68,69 +77,119 @@ public partial class AUSummaryPlugin : BasePlugin, IMiraPlugin
         {
             Log.LogError($"Error patching TOU methods: {ex.Message}");
         }
+
+        // Start background tasks using a MonoBehaviour component
+        AddComponent<AUSummaryBehaviour>();
+    }
+
+    /// <summary>
+    /// MonoBehaviour component to run background tasks
+    /// </summary>
+    private class AUSummaryBehaviour : MonoBehaviour
+    {
+        private float _startTime;
+        private bool _updateCheckDone;
+        private bool _uploadDone;
         
-        // Check for updates asynchronously
-        if (_checkForUpdates.Value)
+        private void Start()
         {
-            CheckForUpdates();
+            _startTime = Time.time;
         }
-    }
-    
-    private async void CheckForUpdates()
-    {
-        try
+        
+        private void Update()
         {
-            Log.LogInfo("Checking for updates...");
-            var updateInfo = await UpdateChecker.CheckForUpdatesAsync();
-            
-            if (updateInfo.UpdateAvailable)
+            // Check for updates after 5 seconds
+            if (!_updateCheckDone && Time.time - _startTime > 5f)
             {
-                Log.LogWarning("╔═══════════════════════════════════════════════════════╗");
-                Log.LogWarning("║           NEW VERSION AVAILABLE!                     ║");
-                Log.LogWarning($"║  Current: v{updateInfo.CurrentVersion} New: v{updateInfo.LatestVersion} ║");
-                Log.LogWarning($"║  Download: {updateInfo.DownloadUrl}");
-                Log.LogWarning("║                                                       ║");
-                Log.LogWarning("║  Please update to get the latest features & fixes!  ║");
-                Log.LogWarning("╚═══════════════════════════════════════════════════════╝");
-                
-                // Show in-game notification
-                ShowUpdateNotification(updateInfo);
-            }
-            else
-            {
-                Log.LogInfo($"You're on the latest version (v{updateInfo.CurrentVersion})!");
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.LogWarning($"Could not check for updates: {ex.Message}");
-        }
-    }
-    
-    private void ShowUpdateNotification(UpdateChecker.UpdateInfo updateInfo)
-    {
-        try
-        {
-            // This will show when the player joins a lobby
-            AddDelayedAction(() =>
-            {
-                if (DestroyableSingleton<HudManager>.Instance != null && DestroyableSingleton<HudManager>.Instance.Notifier != null)
+                _updateCheckDone = true;
+                if (Instance._checkForUpdates.Value)
                 {
-                    // Use the correct API for adding notifications
-                    var notification = $"AUSUMMARY v{updateInfo.LatestVersion} is available! Please update.";
-                    DestroyableSingleton<HudManager>.Instance.Notifier.AddDisconnectMessage(notification);
+                    // Run on background thread to avoid blocking Unity
+                    Task.Run(() => CheckForUpdates());
                 }
-            }, 5f);
+            }
+            
+            // Upload past games after 10 seconds
+            if (!_uploadDone && Time.time - _startTime > 10f)
+            {
+                _uploadDone = true;
+                if (Instance._sendStatsToVercel.Value)
+                {
+                    // Run on background thread to avoid blocking Unity
+                    Task.Run(() => UploadPastGames());
+                }
+            }
         }
-        catch
+        
+        /// <summary>
+        /// Checks for mod updates (runs on background thread)
+        /// </summary>
+        private void CheckForUpdates()
         {
-            // Silently fail if we can't show the notification
+            try
+            {
+                Instance.Log.LogInfo("Checking for updates...");
+                
+                var task = UpdateChecker.CheckForUpdatesAsync(CancellationToken.None);
+                task.Wait(TimeSpan.FromSeconds(15)); // Wait with timeout
+                
+                if (task.IsCompleted && !task.IsFaulted)
+                {
+                    var updateInfo = task.Result;
+                    
+                    if (updateInfo.UpdateAvailable)
+                    {
+                        Instance.Log.LogWarning("╔═══════════════════════════════════════════════════════╗");
+                        Instance.Log.LogWarning("║           NEW VERSION AVAILABLE!                     ║");
+                        Instance.Log.LogWarning($"║  Current: v{updateInfo.CurrentVersion} New: v{updateInfo.LatestVersion}");
+                        Instance.Log.LogWarning($"║  Download: {updateInfo.DownloadUrl}");
+                        Instance.Log.LogWarning("║                                                       ║");
+                        Instance.Log.LogWarning("║  Please update to get the latest features & fixes!  ║");
+                        Instance.Log.LogWarning("╚═══════════════════════════════════════════════════════╝");
+                    }
+                    else
+                    {
+                        Instance.Log.LogInfo($"You're on the latest version (v{updateInfo.CurrentVersion})!");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Instance.Log.LogWarning($"Could not check for updates: {ex.Message}");
+            }
         }
-    }
-    
-    private async void AddDelayedAction(Action action, float delay)
-    {
-        await Task.Delay((int)(delay * 1000));
-        action?.Invoke();
+        
+        /// <summary>
+        /// Uploads past games (runs on background thread)
+        /// </summary>
+        private void UploadPastGames()
+        {
+            try
+            {
+                Instance.Log.LogInfo("Checking for past games to upload...");
+                
+                var task = VercelStatsSender.UploadPastGamesAsync(CancellationToken.None);
+                task.Wait(TimeSpan.FromMinutes(5)); // Wait with longer timeout for uploads
+                
+                if (task.IsCompleted && !task.IsFaulted)
+                {
+                    var uploadedCount = task.Result;
+                    
+                    if (uploadedCount > 0)
+                    {
+                        Instance.Log.LogInfo($"Successfully uploaded {uploadedCount} past games to the dashboard!");
+                    }
+                    else
+                    {
+                        Instance.Log.LogInfo("No past games to upload.");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Instance.Log.LogWarning($"Could not upload past games: {ex.Message}");
+                Instance.Log.LogWarning($"Stack trace: {ex.StackTrace}");
+            }
+        }
     }
 }
