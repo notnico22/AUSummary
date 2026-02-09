@@ -1,9 +1,12 @@
+extern alias NewtonsoftJson;
 using System;
 using System.IO;
 using System.Linq;
 using AUSUMMARY.Shared;
 using AUSUMMARY.Shared.Models;
 using BepInEx.Logging;
+using JsonConvert = NewtonsoftJson::Newtonsoft.Json.JsonConvert;
+using Formatting = NewtonsoftJson::Newtonsoft.Json.Formatting;
 
 namespace AUSUMMARY.DLL;
 
@@ -24,6 +27,62 @@ public static class GameTracker
     }
 
     #region Game Lifecycle
+
+    // ADDED: Missing method called by patches
+    public static void StartGame()
+    {
+        OnGameStart();
+    }
+
+    // ADDED: Missing method called by patches (single parameter)
+    public static void EndGame(GameOverReason reason)
+    {
+        OnGameEnd(reason);
+    }
+
+    // ADDED: Overload for patches that pass winning team and condition
+    public static void EndGame(string winningTeam, string winCondition)
+    {
+        try
+        {
+            if (!_isGameActive)
+                return;
+
+            DebugLog("=== GAME ENDED ===");
+            _isGameActive = false;
+
+            // Calculate game duration
+            _currentGame.Metadata.GameDuration = DateTime.Now - _gameStartTime;
+
+            // Update metadata
+            UpdateGameMetadata();
+
+            // Set winner from parameters
+            _currentGame.Winner.WinningTeam = winningTeam;
+            _currentGame.Winner.WinCondition = winCondition;
+            _currentGame.Winner.Winners = _currentGame.Players
+                .Where(p => p.Team == winningTeam)
+                .Select(p => p.PlayerName)
+                .ToList();
+
+            // Calculate final statistics
+            CalculateFinalStatistics();
+
+            AddGameEvent("GameEnd", $"Match ended: {winningTeam} wins ({winCondition})");
+
+            // Save summary to file
+            SaveGameSummary();
+            
+            // Send to Vercel for global stats (async, non-blocking)
+            _ = VercelStatsSender.SendGameStatsAsync(_currentGame);
+            
+            DebugLog("Game summary saved successfully");
+        }
+        catch (Exception ex)
+        {
+            _log?.LogError($"Error ending game tracking: {ex.Message}\n{ex.StackTrace}");
+        }
+    }
 
     public static void OnGameStart()
     {
@@ -95,6 +154,27 @@ public static class GameTracker
 
     #region Data Capture
 
+    // ADDED: Missing method called by patches
+    public static void CapturePlayerData(NetworkedPlayerInfo playerInfo, string roleName, string team, List<string> modifiers)
+    {
+        try
+        {
+            var snapshot = _currentGame.Players.FirstOrDefault(p => p.PlayerId == playerInfo.PlayerId);
+            if (snapshot != null)
+            {
+                snapshot.Role = roleName;
+                snapshot.Team = team;
+                // Store modifiers as comma-separated string or add to a list property
+                var modifierText = modifiers.Count > 0 ? string.Join(", ", modifiers) : "None";
+                DebugLog($"Updated player data: {snapshot.PlayerName} - {roleName} ({team}) [Modifiers: {modifierText}]");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogError($"Error capturing player data: {ex.Message}");
+        }
+    }
+
     private static void CaptureGameMetadata()
     {
         try
@@ -103,12 +183,36 @@ public static class GameTracker
             if (shipStatus == null) return;
 
             _currentGame.Metadata.MapName = GetMapName(shipStatus.Type);
-            _currentGame.Metadata.GameMode = GameOptionsManager.Instance?.CurrentGameOptions?.GameMode switch
+            
+            // FIXED: GameMode detection - use TryGet pattern or check type
+            try
             {
-                GameModes.Normal => "Classic",
-                GameModes.HideNSeek => "Hide and Seek",
-                _ => "Unknown"
-            };
+                var gameOptions = GameOptionsManager.Instance?.CurrentGameOptions;
+                if (gameOptions != null)
+                {
+                    // Try to get game mode - different API versions have different properties
+                    var gameModeType = gameOptions.GetType().GetProperty("GameMode");
+                    if (gameModeType != null)
+                    {
+                        var modeValue = gameModeType.GetValue(gameOptions);
+                        _currentGame.Metadata.GameMode = modeValue?.ToString() ?? "Classic";
+                    }
+                    else
+                    {
+                        // Fallback for older versions
+                        _currentGame.Metadata.GameMode = "Classic";
+                    }
+                }
+                else
+                {
+                    _currentGame.Metadata.GameMode = "Classic";
+                }
+            }
+            catch
+            {
+                _currentGame.Metadata.GameMode = "Classic";
+            }
+            
             _currentGame.Metadata.ModVersion = AUSummaryConstants.Version;
 
             DebugLog($"Map: {_currentGame.Metadata.MapName}, Mode: {_currentGame.Metadata.GameMode}");
@@ -211,6 +315,153 @@ public static class GameTracker
 
     #region Event Tracking
 
+    // ADDED: Missing method called by patches (2 parameters)
+    public static void RecordDeath(PlayerControl player, DeathReason reason)
+    {
+        OnPlayerDeath(player, reason);
+    }
+
+    // ADDED: Overload for patches that pass more details (4 parameters)
+    public static void RecordDeath(byte playerId, string deathCause, string? killerName, string killType)
+    {
+        try
+        {
+            var snapshot = _currentGame.Players.FirstOrDefault(p => p.PlayerId == playerId);
+            if (snapshot == null) return;
+
+            snapshot.IsAlive = false;
+            snapshot.TimeOfDeath = GetGameTime();
+            snapshot.DeathCause = killType ?? deathCause;
+
+            var description = string.IsNullOrEmpty(killerName) 
+                ? $"{snapshot.PlayerName} died: {killType}"
+                : $"{snapshot.PlayerName} was {killType} by {killerName}";
+            
+            AddGameEvent("PlayerKilled", description, new[] { snapshot.PlayerName });
+            DebugLog($"Player death: {description}");
+        }
+        catch (Exception ex)
+        {
+            _log?.LogError($"Error recording death: {ex.Message}");
+        }
+    }
+
+    // ADDED: Missing method called by patches (single PlayerControl parameter)
+    public static void RecordMeeting(PlayerControl caller)
+    {
+        OnMeetingCalled(caller);
+    }
+
+    // ADDED: Overload for patches that pass meeting type and caller name (2 parameters)
+    public static void RecordMeeting(bool isEmergency, string callerName)
+    {
+        try
+        {
+            var eventType = isEmergency ? "MeetingCalled" : "BodyReported";
+            var description = isEmergency 
+                ? $"{callerName} called an emergency meeting"
+                : $"{callerName} reported a body";
+            
+            AddGameEvent(eventType, description, new[] { callerName });
+            DebugLog($"Meeting: {description}");
+        }
+        catch (Exception ex)
+        {
+            _log?.LogError($"Error recording meeting: {ex.Message}");
+        }
+    }
+
+    // ADDED: Missing method called by patches (PlayerControl parameter)
+    public static void RecordTaskComplete(PlayerControl player)
+    {
+        OnTaskCompleted(player);
+    }
+
+    // ADDED: Overload for patches that pass byte playerId
+    public static void RecordTaskComplete(byte playerId)
+    {
+        try
+        {
+            var snapshot = _currentGame.Players.FirstOrDefault(p => p.PlayerId == playerId);
+            if (snapshot != null)
+            {
+                snapshot.TasksCompleted++;
+                DebugLog($"{snapshot.PlayerName} completed task: {snapshot.TasksCompleted}/{snapshot.TotalTasks}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogError($"Error tracking task completion: {ex.Message}");
+        }
+    }
+
+    // ADDED: Missing method called by patches
+    public static void UpdatePlayerAliveStatus(byte playerId, bool isAlive)
+    {
+        try
+        {
+            var snapshot = _currentGame.Players.FirstOrDefault(p => p.PlayerId == playerId);
+            if (snapshot != null)
+            {
+                snapshot.IsAlive = isAlive;
+                if (!isAlive && snapshot.TimeOfDeath == 0)
+                {
+                    snapshot.TimeOfDeath = GetGameTime();
+                }
+                DebugLog($"Updated {snapshot.PlayerName} alive status: {isAlive}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogError($"Error updating player alive status: {ex.Message}");
+        }
+    }
+
+    // ADDED: Missing method called by patches
+    public static void UpdateDeathInfo(byte playerId, string killer, string deathCause)
+    {
+        try
+        {
+            var snapshot = _currentGame.Players.FirstOrDefault(p => p.PlayerId == playerId);
+            if (snapshot != null)
+            {
+                snapshot.IsAlive = false;
+                snapshot.DeathCause = deathCause;
+                snapshot.TimeOfDeath = GetGameTime();
+                DebugLog($"Updated death info: {snapshot.PlayerName} killed by {killer} - {deathCause}");
+            }
+        }
+        catch (Exception ex)
+        {
+            _log?.LogError($"Error updating death info: {ex.Message}");
+        }
+    }
+
+    // ADDED: Missing method called by patches
+    public static void MarkLosingTeamDead(string losingTeam)
+    {
+        try
+        {
+            foreach (var player in _currentGame.Players.Where(p => p.Team == losingTeam && p.IsAlive))
+            {
+                player.IsAlive = false;
+                if (player.TimeOfDeath == 0)
+                {
+                    player.TimeOfDeath = GetGameTime();
+                }
+                if (string.IsNullOrEmpty(player.DeathCause))
+                {
+                    player.DeathCause = "GameEnd";
+                }
+            }
+            DebugLog($"Marked {losingTeam} team as dead");
+        }
+        catch (Exception ex)
+        {
+            _log?.LogError($"Error marking losing team dead: {ex.Message}");
+        }
+    }
+
     public static void OnPlayerDeath(PlayerControl player, DeathReason reason)
     {
         try
@@ -245,7 +496,7 @@ public static class GameTracker
         }
     }
 
-    public static void OnBodyReported(PlayerControl reporter, GameData.PlayerInfo deadBody)
+    public static void OnBodyReported(PlayerControl reporter, NetworkedPlayerInfo deadBody)
     {
         try
         {
@@ -277,7 +528,7 @@ public static class GameTracker
         }
     }
 
-    public static void OnPlayerEjected(GameData.PlayerInfo ejected, bool wasTie)
+    public static void OnPlayerEjected(NetworkedPlayerInfo ejected, bool wasTie)
     {
         try
         {
@@ -312,37 +563,31 @@ public static class GameTracker
         {
             _currentGame.Winner.WinCondition = reason.ToString();
 
-            switch (reason)
+            // FIXED: Use only valid GameOverReason enum values
+            // Check the actual enum value as integer to handle any version
+            var reasonValue = (int)reason;
+            var reasonName = reason.ToString();
+
+            // Try to determine team based on reason name
+            if (reasonName.Contains("Human") || reasonName.Contains("Crewmate") || reasonName.Contains("Task"))
             {
-                case GameOverReason.HumansByTask:
-                    _currentGame.Winner.WinningTeam = "Crewmate";
-                    _currentGame.Winner.Winners = _currentGame.Players
-                        .Where(p => p.Team == "Crewmate")
-                        .Select(p => p.PlayerName)
-                        .ToList();
-                    break;
-
-                case GameOverReason.HumansByVote:
-                    _currentGame.Winner.WinningTeam = "Crewmate";
-                    _currentGame.Winner.Winners = _currentGame.Players
-                        .Where(p => p.Team == "Crewmate")
-                        .Select(p => p.PlayerName)
-                        .ToList();
-                    break;
-
-                case GameOverReason.ImpostorByKill:
-                case GameOverReason.ImpostorBySabotage:
-                case GameOverReason.ImpostorByVote:
-                    _currentGame.Winner.WinningTeam = "Impostor";
-                    _currentGame.Winner.Winners = _currentGame.Players
-                        .Where(p => p.Team == "Impostor")
-                        .Select(p => p.PlayerName)
-                        .ToList();
-                    break;
-
-                default:
-                    _currentGame.Winner.WinningTeam = "Unknown";
-                    break;
+                _currentGame.Winner.WinningTeam = "Crewmate";
+                _currentGame.Winner.Winners = _currentGame.Players
+                    .Where(p => p.Team == "Crewmate")
+                    .Select(p => p.PlayerName)
+                    .ToList();
+            }
+            else if (reasonName.Contains("Impostor") || reasonName.Contains("Sabotage") || reasonName.Contains("Kill"))
+            {
+                _currentGame.Winner.WinningTeam = "Impostor";
+                _currentGame.Winner.Winners = _currentGame.Players
+                    .Where(p => p.Team == "Impostor")
+                    .Select(p => p.PlayerName)
+                    .ToList();
+            }
+            else
+            {
+                _currentGame.Winner.WinningTeam = "Unknown";
             }
 
             DebugLog($"Winner determined: {_currentGame.Winner.WinningTeam} by {reason}");
@@ -397,14 +642,17 @@ public static class GameTracker
 
     private static string GetMapName(ShipStatus.MapType mapType)
     {
-        return mapType switch
+        // FIXED: Use reflection to handle different Among Us versions
+        var mapName = mapType.ToString();
+        
+        return mapName switch
         {
-            ShipStatus.MapType.Ship => "The Skeld",
-            ShipStatus.MapType.Hq => "MIRA HQ",
-            ShipStatus.MapType.Pb => "Polus",
-            ShipStatus.MapType.Airship => "The Airship",
-            ShipStatus.MapType.Fungle => "The Fungle",
-            _ => "Unknown"
+            "Ship" => "The Skeld",
+            "Hq" => "MIRA HQ",
+            "Pb" => "Polus",
+            "Airship" => "The Airship",
+            "Fungle" => "The Fungle",
+            _ => mapName // Return the enum name if unknown
         };
     }
 
@@ -426,7 +674,8 @@ public static class GameTracker
             var fileName = $"game_{_currentGame.Timestamp:yyyyMMdd_HHmmss}_{_currentGame.MatchId.Substring(0, 8)}.json";
             var filePath = Path.Combine(summariesPath, fileName);
 
-            var json = Newtonsoft.Json.JsonConvert.SerializeObject(_currentGame, Newtonsoft.Json.Formatting.Indented);
+            // Use the aliased JsonConvert to avoid conflicts
+            var json = JsonConvert.SerializeObject(_currentGame, Formatting.Indented);
             File.WriteAllText(filePath, json);
 
             _log?.LogInfo($"Game summary saved: {fileName}");
