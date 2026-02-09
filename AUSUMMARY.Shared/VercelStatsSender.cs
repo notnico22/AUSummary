@@ -169,6 +169,14 @@ public static class VercelStatsSender
     }
 
     /// <summary>
+    /// Public method to send raw JSON (called from GameTracker)
+    /// </summary>
+    public static async Task<bool> SendRawJsonAsync(string json, string? filePath = null, CancellationToken cancellationToken = default)
+    {
+        return await SendRawJsonWithRetryAsync(json, filePath, cancellationToken);
+    }
+    
+    /// <summary>
     /// Sends raw JSON directly to the API with retry logic
     /// </summary>
     private static async Task<bool> SendRawJsonWithRetryAsync(string json, string? filePath = null, CancellationToken cancellationToken = default)

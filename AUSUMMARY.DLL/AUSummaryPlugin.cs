@@ -78,6 +78,9 @@ public partial class AUSummaryPlugin : BasePlugin, IMiraPlugin
             Log.LogError($"Error patching TOU methods: {ex.Message}");
         }
 
+        // Initialize MainThreadDispatcher FIRST (critical for IL2CPP)
+        AddComponent<MainThreadDispatcher>();
+        
         // Start background tasks using a MonoBehaviour component
         AddComponent<AUSummaryBehaviour>();
     }

@@ -69,14 +69,30 @@ public static class GameTracker
 
             AddGameEvent("GameEnd", $"Match ended: {winningTeam} wins ({winCondition})");
 
-            // Save summary to file
+            // CRITICAL: Save summary to file on main thread (accesses IL2CPP objects)
             var savedFilePath = SaveGameSummary();
 
-            // Send to Vercel for global stats (async, non-blocking)
-            // Run on background thread to avoid IL2CPP issues
-            var currentGameCopy = _currentGame;
-            var savedFilePathCopy = savedFilePath;
-            Task.Run(async () => await VercelStatsSender.SendGameStatsAsync(currentGameCopy, savedFilePathCopy));
+            // CRITICAL: Read the saved JSON file instead of passing the IL2CPP object to background thread
+            // This avoids "Collecting from unknown thread" GC errors
+            if (!string.IsNullOrEmpty(savedFilePath) && File.Exists(savedFilePath))
+            {
+                var savedFilePathCopy = savedFilePath;
+                // Read JSON on main thread, then upload in background
+                var jsonToUpload = File.ReadAllText(savedFilePath);
+                Task.Run(async () => 
+                {
+                    try
+                    {
+                        await VercelStatsSender.SendRawJsonAsync(jsonToUpload, savedFilePathCopy);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log errors on main thread
+                        MainThreadDispatcher.Enqueue(() => 
+                            _log?.LogError($"Error uploading game: {ex.Message}"));
+                    }
+                });
+            }
 
             DebugLog("Game summary saved successfully");
         }
@@ -138,14 +154,30 @@ public static class GameTracker
 
             AddGameEvent("GameEnd", $"Match ended: {endReason}");
 
-            // Save summary to file
+            // CRITICAL: Save summary to file on main thread (accesses IL2CPP objects)
             var savedFilePath = SaveGameSummary();
 
-            // Send to Vercel for global stats (async, non-blocking)
-            // Run on background thread to avoid IL2CPP issues
-            var currentGameCopy = _currentGame;
-            var savedFilePathCopy = savedFilePath;
-            Task.Run(async () => await VercelStatsSender.SendGameStatsAsync(currentGameCopy, savedFilePathCopy));
+            // CRITICAL: Read the saved JSON file instead of passing the IL2CPP object to background thread
+            // This avoids "Collecting from unknown thread" GC errors
+            if (!string.IsNullOrEmpty(savedFilePath) && File.Exists(savedFilePath))
+            {
+                var savedFilePathCopy = savedFilePath;
+                // Read JSON on main thread, then upload in background
+                var jsonToUpload = File.ReadAllText(savedFilePath);
+                Task.Run(async () => 
+                {
+                    try
+                    {
+                        await VercelStatsSender.SendRawJsonAsync(jsonToUpload, savedFilePathCopy);
+                    }
+                    catch (Exception ex)
+                    {
+                        // Log errors on main thread
+                        MainThreadDispatcher.Enqueue(() => 
+                            _log?.LogError($"Error uploading game: {ex.Message}"));
+                    }
+                });
+            }
 
             DebugLog("Game summary saved successfully");
         }
