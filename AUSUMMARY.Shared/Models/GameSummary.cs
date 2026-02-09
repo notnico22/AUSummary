@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Newtonsoft.Json;
 
 namespace AUSUMMARY.Shared.Models;
@@ -20,7 +19,7 @@ public class GameSummary
     public GameMetadata Metadata { get; set; } = new();
 
     [JsonProperty("players")]
-    public List<PlayerSnapshot> Players { get; set} = new();
+    public List<PlayerSnapshot> Players { get; set; } = new();
 
     [JsonProperty("events")]
     public List<GameEvent> Events { get; set; } = new();
