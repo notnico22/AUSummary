@@ -1,5 +1,6 @@
 using System;
 using System.Net.Http;
+using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
@@ -26,7 +27,7 @@ public static class UpdateChecker
     /// <summary>
     /// Checks if a newer version is available on GitHub
     /// </summary>
-    public static async Task<UpdateInfo> CheckForUpdatesAsync()
+    public static async Task<UpdateInfo> CheckForUpdatesAsync(CancellationToken cancellationToken = default)
     {
         var info = new UpdateInfo
         {
@@ -40,7 +41,11 @@ public static class UpdateChecker
             client.DefaultRequestHeaders.Add("User-Agent", "AUSummary-UpdateChecker");
             client.Timeout = TimeSpan.FromSeconds(10);
 
-            var response = await client.GetStringAsync(GithubApiUrl);
+            var response = await client.GetStringAsync(GithubApiUrl, cancellationToken);
+            
+            if (cancellationToken.IsCancellationRequested)
+                return info;
+            
             var release = JObject.Parse(response);
 
             var tagName = release["tag_name"]?.ToString() ?? "";
@@ -53,6 +58,11 @@ public static class UpdateChecker
             // Compare versions
             info.UpdateAvailable = CompareVersions(info.CurrentVersion, latestVersion) < 0;
 
+            return info;
+        }
+        catch (OperationCanceledException)
+        {
+            // Update check was cancelled
             return info;
         }
         catch (Exception ex)

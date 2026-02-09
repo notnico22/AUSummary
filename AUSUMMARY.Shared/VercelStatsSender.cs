@@ -1,11 +1,14 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using AUSUMMARY.Shared.Models;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace AUSUMMARY.Shared;
 
@@ -17,8 +20,15 @@ public static class VercelStatsSender
     private const string VercelEndpoint = "https://ausummary.vercel.app/api/stats";
     private const string UserIdFileName = "user_id.txt";
     
-    private static readonly HttpClient _httpClient = new();
     private static string? _userId;
+    
+    // Rate limiting and concurrency control
+    private static readonly SemaphoreSlim _uploadSemaphore = new SemaphoreSlim(1, 1);
+    private const int UploadDelayMs = 1000; // 1 second delay between uploads
+    private const int RetryDelayMs = 3000; // 3 seconds delay before retry
+    private const int MaxRetries = 3;
+    private const int MaxConcurrentUploads = 5; // Limit batch uploads
+    private const int RequestTimeoutSeconds = 15;
 
     /// <summary>
     /// Gets or generates a unique user ID for this player
@@ -62,8 +72,15 @@ public static class VercelStatsSender
 
     /// <summary>
     /// Uploads all past games that haven't been uploaded yet (on first launch)
+    /// Uses raw JSON to avoid IL2CPP deserialization issues
     /// </summary>
-    public static async Task<int> UploadPastGamesAsync()
+    public static async Task<int> UploadPastGamesAsync(CancellationToken cancellationToken = default)
+    {
+        // IMPORTANT: Run on a background thread to avoid IL2CPP GC issues
+        return await Task.Run(async () => await UploadPastGamesAsyncInternal(cancellationToken), cancellationToken);
+    }
+    
+    private static async Task<int> UploadPastGamesAsyncInternal(CancellationToken cancellationToken)
     {
         try
         {
@@ -72,7 +89,8 @@ public static class VercelStatsSender
                 return 0;
 
             var jsonFiles = Directory.GetFiles(summariesPath, "*.json")
-                .Where(f => !f.EndsWith("-up.json")) // Only non-uploaded files
+                .Where(f => !f.EndsWith("-up.json") && !f.EndsWith(UserIdFileName))
+                .OrderBy(f => File.GetCreationTime(f))
                 .ToList();
 
             if (jsonFiles.Count == 0)
@@ -82,21 +100,52 @@ public static class VercelStatsSender
             }
 
             Console.WriteLine($"Found {jsonFiles.Count} past games to upload");
-            int successCount = 0;
-
-            foreach (var file in jsonFiles)
+            
+            // Limit the number of games to upload in one session to avoid overwhelming the API
+            const int maxGamesToUpload = 50;
+            if (jsonFiles.Count > maxGamesToUpload)
             {
+                Console.WriteLine($"Limiting upload to {maxGamesToUpload} games to avoid overwhelming the server");
+                Console.WriteLine($"Remaining {jsonFiles.Count - maxGamesToUpload} will be uploaded next time");
+                jsonFiles = jsonFiles.Take(maxGamesToUpload).ToList();
+            }
+            
+            int successCount = 0;
+            var userId = GetOrCreateUserId();
+
+            // Process in batches to avoid overwhelming the API
+            for (int i = 0; i < jsonFiles.Count; i++)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    Console.WriteLine("Upload cancelled by user");
+                    break;
+                }
+                
+                var file = jsonFiles[i];
+                
                 try
                 {
-                    var json = File.ReadAllText(file);
-                    var summary = JsonConvert.DeserializeObject<GameSummary>(json);
+                    Console.WriteLine($"Uploading game {i + 1}/{jsonFiles.Count}...");
                     
-                    if (summary != null && await SendGameStatsAsync(summary, file))
+                    // Read the raw JSON and inject userId without full deserialization
+                    var jsonText = await File.ReadAllTextAsync(file, cancellationToken);
+                    
+                    // Use JObject to add userId without deserializing the whole object
+                    var jObject = JObject.Parse(jsonText);
+                    jObject["userId"] = userId;
+                    
+                    var modifiedJson = jObject.ToString(Formatting.None);
+                    
+                    if (await SendRawJsonWithRetryAsync(modifiedJson, file, cancellationToken))
                     {
                         successCount++;
-                        // Small delay to avoid overwhelming the API
-                        await Task.Delay(200);
                     }
+                }
+                catch (OperationCanceledException)
+                {
+                    Console.WriteLine("Upload cancelled");
+                    break;
                 }
                 catch (Exception ex)
                 {
@@ -107,6 +156,11 @@ public static class VercelStatsSender
             Console.WriteLine($"Successfully uploaded {successCount}/{jsonFiles.Count} past games");
             return successCount;
         }
+        catch (OperationCanceledException)
+        {
+            Console.WriteLine("Past game upload cancelled");
+            return 0;
+        }
         catch (Exception ex)
         {
             Console.WriteLine($"Error uploading past games: {ex.Message}");
@@ -115,130 +169,282 @@ public static class VercelStatsSender
     }
 
     /// <summary>
+    /// Sends raw JSON directly to the API with retry logic
+    /// </summary>
+    private static async Task<bool> SendRawJsonWithRetryAsync(string json, string? filePath = null, CancellationToken cancellationToken = default)
+    {
+        // Wait for semaphore to ensure sequential uploads
+        await _uploadSemaphore.WaitAsync(cancellationToken);
+        
+        try
+        {
+            for (int attempt = 1; attempt <= MaxRetries; attempt++)
+            {
+                if (cancellationToken.IsCancellationRequested)
+                    return false;
+                
+                try
+                {
+                    // Create a fresh HttpClient for each request to avoid "already started" errors
+                    using var httpClient = new HttpClient
+                    {
+                        Timeout = TimeSpan.FromSeconds(RequestTimeoutSeconds)
+                    };
+                    
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    var response = await httpClient.PostAsync(VercelEndpoint, content, cancellationToken);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        // Extract matchId from JSON for logging
+                        var matchId = "unknown";
+                        try
+                        {
+                            var jObject = JObject.Parse(json);
+                            matchId = jObject["MatchId"]?.ToString()?.Substring(0, 8) ?? "unknown";
+                        }
+                        catch { }
+                        
+                        Console.WriteLine($"✓ Successfully uploaded game {matchId}");
+                        
+                        // Mark file as uploaded by renaming it
+                        if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath) && !filePath.EndsWith("-up.json"))
+                        {
+                            try
+                            {
+                                var newPath = filePath.Replace(".json", "-up.json");
+                                File.Move(filePath, newPath);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Warning: Could not rename file: {ex.Message}");
+                            }
+                        }
+                        
+                        // Delay before next upload to avoid overwhelming the API
+                        if (!cancellationToken.IsCancellationRequested)
+                        {
+                            await Task.Delay(UploadDelayMs, cancellationToken);
+                        }
+                        
+                        return true;
+                    }
+                    else
+                    {
+                        var responseText = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine($"✗ Failed to upload game (attempt {attempt}/{MaxRetries}): {response.StatusCode}");
+                        
+                        if (attempt < MaxRetries && !cancellationToken.IsCancellationRequested)
+                        {
+                            Console.WriteLine($"  Retrying in {RetryDelayMs}ms...");
+                            await Task.Delay(RetryDelayMs, cancellationToken);
+                        }
+                    }
+                }
+                catch (OperationCanceledException)
+                {
+                    throw; // Propagate cancellation
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"✗ Error sending stats (attempt {attempt}/{MaxRetries}): {ex.Message}");
+                    
+                    if (attempt < MaxRetries && !cancellationToken.IsCancellationRequested)
+                    {
+                        Console.WriteLine($"  Retrying in {RetryDelayMs}ms...");
+                        await Task.Delay(RetryDelayMs, cancellationToken);
+                    }
+                }
+            }
+            
+            Console.WriteLine($"✗ Failed to upload after {MaxRetries} attempts");
+            return false;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        finally
+        {
+            _uploadSemaphore.Release();
+        }
+    }
+
+    /// <summary>
     /// Sends a complete game summary to the Vercel analytics endpoint
     /// </summary>
-    public static async Task<bool> SendGameStatsAsync(GameSummary summary, string? filePath = null)
+    public static async Task<bool> SendGameStatsAsync(GameSummary summary, string? filePath = null, CancellationToken cancellationToken = default)
     {
+        // IMPORTANT: Run on a background thread to avoid IL2CPP GC issues
+        return await Task.Run(async () => await SendGameStatsAsyncInternal(summary, filePath, cancellationToken), cancellationToken);
+    }
+    
+    private static async Task<bool> SendGameStatsAsyncInternal(GameSummary summary, string? filePath, CancellationToken cancellationToken)
+    {
+        // Wait for semaphore to ensure sequential uploads
+        await _uploadSemaphore.WaitAsync(cancellationToken);
+        
         try
         {
             var userId = GetOrCreateUserId();
             
-            // Send the complete game summary with user ID
-            var stats = new
+            for (int attempt = 1; attempt <= MaxRetries; attempt++)
             {
-                userId = userId,
-                matchId = summary.MatchId,
-                timestamp = summary.Timestamp,
-                metadata = new
-                {
-                    mapName = summary.Metadata.MapName,
-                    gameMode = summary.Metadata.GameMode,
-                    playerCount = summary.Metadata.PlayerCount,
-                    gameDuration = summary.Metadata.GameDuration.TotalSeconds,
-                    totalMeetings = summary.Metadata.TotalMeetings,
-                    totalTasks = summary.Metadata.TotalTasks,
-                    completedTasks = summary.Metadata.CompletedTasks,
-                    modVersion = summary.Metadata.ModVersion
-                },
-                players = summary.Players.Select(p => new
-                {
-                    playerName = p.PlayerName,
-                    playerId = p.PlayerId,
-                    colorName = p.ColorName,
-                    role = p.Role,
-                    team = p.Team,
-                    modifiers = p.Modifiers,
-                    isAlive = p.IsAlive,
-                    deathCause = p.DeathCause,
-                    killType = p.KillType,
-                    timeOfDeath = p.TimeOfDeath,
-                    killedBy = p.KilledBy,
-                    killCount = p.KillCount,
-                    tasksCompleted = p.TasksCompleted,
-                    totalTasks = p.TotalTasks,
-                    wasEjected = p.WasEjected,
-                    survivedRounds = p.SurvivedRounds
-                }).ToList(),
-                events = summary.Events.Select(e => new
-                {
-                    eventType = e.EventType,
-                    timestamp = e.Timestamp,
-                    description = e.Description,
-                    involvedPlayers = e.InvolvedPlayers,
-                    data = e.Data
-                }).ToList(),
-                winner = new
-                {
-                    winningTeam = summary.Winner.WinningTeam,
-                    winCondition = summary.Winner.WinCondition,
-                    winners = summary.Winner.Winners,
-                    mvp = summary.Winner.Mvp
-                },
-                statistics = new
-                {
-                    totalKills = summary.Statistics.TotalKills,
-                    totalEjections = summary.Statistics.TotalEjections,
-                    totalDeaths = summary.Statistics.TotalDeaths,
-                    taskCompletionRate = summary.Statistics.TaskCompletionRate,
-                    averageMeetingTime = summary.Statistics.AverageMeetingTime,
-                    impostorWinRate = summary.Statistics.ImpostorWinRate,
-                    crewmateWinRate = summary.Statistics.CrewmateWinRate
-                }
-            };
-
-            var json = JsonConvert.SerializeObject(stats);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-            _httpClient.Timeout = TimeSpan.FromSeconds(10);
-            var response = await _httpClient.PostAsync(VercelEndpoint, content);
-
-            if (response.IsSuccessStatusCode)
-            {
-                Console.WriteLine($"Successfully uploaded game {summary.MatchId.Substring(0, 8)}");
+                if (cancellationToken.IsCancellationRequested)
+                    return false;
                 
-                // Mark file as uploaded by renaming it
-                if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath) && !filePath.EndsWith("-up.json"))
+                try
                 {
-                    try
+                    // Send the complete game summary with user ID
+                    var stats = new
                     {
-                        var newPath = filePath.Replace(".json", "-up.json");
-                        File.Move(filePath, newPath);
-                        Console.WriteLine($"Renamed to: {Path.GetFileName(newPath)}");
+                        userId = userId,
+                        MatchId = summary.MatchId,
+                        Timestamp = summary.Timestamp,
+                        Metadata = new
+                        {
+                            MapName = summary.Metadata.MapName,
+                            GameMode = summary.Metadata.GameMode,
+                            PlayerCount = summary.Metadata.PlayerCount,
+                            GameDuration = summary.Metadata.GameDuration.TotalSeconds,
+                            TotalMeetings = summary.Metadata.TotalMeetings,
+                            TotalTasks = summary.Metadata.TotalTasks,
+                            CompletedTasks = summary.Metadata.CompletedTasks,
+                            ModVersion = summary.Metadata.ModVersion
+                        },
+                        Players = summary.Players.Select(p => new
+                        {
+                            PlayerName = p.PlayerName,
+                            PlayerId = p.PlayerId,
+                            ColorName = p.ColorName,
+                            Role = p.Role,
+                            Team = p.Team,
+                            Modifiers = p.Modifiers,
+                            IsAlive = p.IsAlive,
+                            DeathCause = p.DeathCause,
+                            KillType = p.KillType,
+                            TimeOfDeath = p.TimeOfDeath,
+                            KilledBy = p.KilledBy,
+                            KillCount = p.KillCount,
+                            TasksCompleted = p.TasksCompleted,
+                            TotalTasks = p.TotalTasks,
+                            WasEjected = p.WasEjected,
+                            SurvivedRounds = p.SurvivedRounds
+                        }).ToList(),
+                        Events = summary.Events.Select(e => new
+                        {
+                            EventType = e.EventType,
+                            Timestamp = e.Timestamp,
+                            Description = e.Description,
+                            InvolvedPlayers = e.InvolvedPlayers,
+                            Data = e.Data
+                        }).ToList(),
+                        Winner = new
+                        {
+                            WinningTeam = summary.Winner.WinningTeam,
+                            WinCondition = summary.Winner.WinCondition,
+                            Winners = summary.Winner.Winners,
+                            Mvp = summary.Winner.Mvp
+                        },
+                        Statistics = new
+                        {
+                            TotalKills = summary.Statistics.TotalKills,
+                            TotalEjections = summary.Statistics.TotalEjections,
+                            TotalDeaths = summary.Statistics.TotalDeaths,
+                            TaskCompletionRate = summary.Statistics.TaskCompletionRate,
+                            AverageMeetingTime = summary.Statistics.AverageMeetingTime,
+                            ImpostorWinRate = summary.Statistics.ImpostorWinRate,
+                            CrewmateWinRate = summary.Statistics.CrewmateWinRate
+                        }
+                    };
+
+                    var json = JsonConvert.SerializeObject(stats);
+                    
+                    // Create a fresh HttpClient for each request to avoid "already started" errors
+                    using var httpClient = new HttpClient
+                    {
+                        Timeout = TimeSpan.FromSeconds(RequestTimeoutSeconds)
+                    };
+                    
+                    var content = new StringContent(json, Encoding.UTF8, "application/json");
+                    var response = await httpClient.PostAsync(VercelEndpoint, content, cancellationToken);
+
+                    if (response.IsSuccessStatusCode)
+                    {
+                        Console.WriteLine($"✓ Successfully uploaded game {summary.MatchId.Substring(0, 8)}");
+                        
+                        // Mark file as uploaded by renaming it
+                        if (!string.IsNullOrEmpty(filePath) && File.Exists(filePath) && !filePath.EndsWith("-up.json"))
+                        {
+                            try
+                            {
+                                var newPath = filePath.Replace(".json", "-up.json");
+                                File.Move(filePath, newPath);
+                            }
+                            catch (Exception ex)
+                            {
+                                Console.WriteLine($"Warning: Could not rename file: {ex.Message}");
+                            }
+                        }
+                        
+                        return true;
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        Console.WriteLine($"Warning: Could not rename file: {ex.Message}");
+                        var responseText = await response.Content.ReadAsStringAsync();
+                        Console.WriteLine($"✗ Failed to upload game (attempt {attempt}/{MaxRetries}): {response.StatusCode}");
+                        
+                        if (attempt < MaxRetries && !cancellationToken.IsCancellationRequested)
+                        {
+                            Console.WriteLine($"  Retrying in {RetryDelayMs}ms...");
+                            await Task.Delay(RetryDelayMs, cancellationToken);
+                        }
                     }
                 }
-                
-                return true;
+                catch (OperationCanceledException)
+                {
+                    throw; // Propagate cancellation
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"✗ Error sending stats (attempt {attempt}/{MaxRetries}): {ex.Message}");
+                    
+                    if (attempt < MaxRetries && !cancellationToken.IsCancellationRequested)
+                    {
+                        Console.WriteLine($"  Retrying in {RetryDelayMs}ms...");
+                        await Task.Delay(RetryDelayMs, cancellationToken);
+                    }
+                }
             }
-            else
-            {
-                Console.WriteLine($"Failed to upload game: {response.StatusCode}");
-                return false;
-            }
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"Failed to send stats to Vercel: {ex.Message}");
+            
+            Console.WriteLine($"✗ Failed to upload after {MaxRetries} attempts");
             return false;
+        }
+        catch (OperationCanceledException)
+        {
+            return false;
+        }
+        finally
+        {
+            _uploadSemaphore.Release();
         }
     }
 
     /// <summary>
     /// Batch sends multiple game summaries
     /// </summary>
-    public static async Task<int> SendBatchStatsAsync(List<GameSummary> summaries)
+    public static async Task<int> SendBatchStatsAsync(List<GameSummary> summaries, CancellationToken cancellationToken = default)
     {
         int successCount = 0;
         
         foreach (var summary in summaries)
         {
-            if (await SendGameStatsAsync(summary))
+            if (cancellationToken.IsCancellationRequested)
+                break;
+            
+            if (await SendGameStatsAsync(summary, null, cancellationToken))
             {
                 successCount++;
-                await Task.Delay(200);
             }
         }
 
