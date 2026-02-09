@@ -121,7 +121,7 @@ Game summaries automatically save to: `C:\Users\[YourName]\Documents\AmongUsGame
 
 ## ⚠️ Disclaimer
 
-Personal use only. Not affiliated with Innersloth or Town of Us. This mod only records game data - it does not modify gameplay or provide any advantages.
+Personal use only. Not affiliated with Innersloth or Town of Us. This mod only records game data. It does not modify gameplay or provide any advantages.
 
 ---
 
