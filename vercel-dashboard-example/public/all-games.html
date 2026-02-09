@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AUSUMMARY - All Games Data</title>
+    <title>AUSUMMARY - All Games</title>
     <style>
         * {
             margin: 0;
@@ -12,9 +12,10 @@
         }
 
         body {
-            font-family: 'Courier New', monospace;
-            background: #0a0a0a;
-            color: #00ff00;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+            color: #ffffff;
+            min-height: 100vh;
             padding: 20px;
         }
 
@@ -24,237 +25,312 @@
         }
 
         header {
-            background: #1a1a1a;
-            padding: 20px;
-            border: 2px solid #00ff00;
-            margin-bottom: 20px;
+            text-align: center;
+            padding: 40px 20px;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            border-radius: 20px;
+            margin-bottom: 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
         }
 
         h1 {
-            color: #00ff00;
+            font-size: 3rem;
             margin-bottom: 10px;
+            background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #94a3b8;
+            font-size: 1.2rem;
         }
 
         .controls {
-            margin: 20px 0;
             display: flex;
-            gap: 10px;
+            gap: 15px;
             flex-wrap: wrap;
+            margin-bottom: 30px;
+            justify-content: center;
         }
 
         button {
-            background: #1a1a1a;
-            color: #00ff00;
-            border: 2px solid #00ff00;
-            padding: 10px 20px;
-            cursor: pointer;
-            font-family: 'Courier New', monospace;
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            color: #e2e8f0;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 12px 24px;
+            border-radius: 10px;
             font-size: 14px;
-            transition: all 0.3s;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
         button:hover {
-            background: #00ff00;
-            color: #0a0a0a;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(14, 165, 233, 0.3);
+            background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+            color: white;
         }
 
-        .stats-summary {
-            background: #1a1a1a;
-            border: 2px solid #00ff00;
-            padding: 20px;
-            margin-bottom: 20px;
-        }
-
-        .stats-summary h2 {
-            margin-bottom: 10px;
-            color: #00ff00;
-        }
-
-        .stat-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 10px;
-            margin-top: 10px;
-        }
-
-        .stat-item {
-            padding: 10px;
-            background: rgba(0, 255, 0, 0.1);
-            border: 1px solid #00ff00;
-        }
-
-        .stat-label {
-            color: #00aa00;
-            font-size: 12px;
-        }
-
-        .stat-value {
-            color: #00ff00;
-            font-size: 20px;
-            font-weight: bold;
-        }
-
-        .game-card {
-            background: #1a1a1a;
-            border: 2px solid #00ff00;
-            padding: 20px;
-            margin-bottom: 20px;
-            position: relative;
-        }
-
-        .game-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 15px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #00ff00;
-        }
-
-        .game-id {
-            color: #00ff00;
-            font-weight: bold;
-        }
-
-        .game-time {
-            color: #00aa00;
-            font-size: 12px;
-        }
-
-        .game-info {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-
-        .info-item {
-            padding: 5px;
-        }
-
-        .info-label {
-            color: #00aa00;
-            font-size: 11px;
-        }
-
-        .info-value {
-            color: #00ff00;
-        }
-
-        .winner-crewmate {
-            color: #00ff00;
-        }
-
-        .winner-impostor {
-            color: #ff0000;
-        }
-
-        .roles-section {
-            margin-top: 15px;
-            padding-top: 15px;
-            border-top: 1px solid #00ff00;
-        }
-
-        .roles-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 5px;
-            margin-top: 10px;
-        }
-
-        .role-item {
-            padding: 5px;
-            background: rgba(0, 255, 0, 0.05);
-            font-size: 12px;
-        }
-
-        .json-view {
-            background: #000000;
-            border: 1px solid #00ff00;
-            padding: 15px;
-            margin-top: 10px;
-            overflow-x: auto;
-            display: none;
-        }
-
-        .json-view pre {
-            margin: 0;
-            color: #00ff00;
-            font-size: 11px;
-        }
-
-        .toggle-json {
-            background: transparent;
-            border: 1px solid #00aa00;
-            color: #00aa00;
-            padding: 5px 10px;
-            font-size: 11px;
-            margin-top: 10px;
-        }
-
-        .toggle-json:hover {
-            background: #00aa00;
-            color: #000;
-        }
-
-        .loading {
-            text-align: center;
-            padding: 40px;
-            color: #00ff00;
-            font-size: 18px;
-        }
-
-        .error {
-            background: #1a0000;
-            border: 2px solid #ff0000;
-            color: #ff0000;
-            padding: 20px;
-            margin: 20px 0;
+        .search-filter-section {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .search-box {
             width: 100%;
-            background: #1a1a1a;
-            color: #00ff00;
-            border: 2px solid #00ff00;
-            padding: 10px;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
+            background: rgba(0, 0, 0, 0.3);
+            color: #e2e8f0;
+            border: 2px solid rgba(14, 165, 233, 0.3);
+            padding: 15px 20px;
+            font-size: 16px;
+            border-radius: 10px;
             margin-bottom: 20px;
+            font-family: inherit;
+            transition: all 0.3s ease;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #0ea5e9;
+            box-shadow: 0 0 20px rgba(14, 165, 233, 0.2);
         }
 
         .filter-tags {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
-            margin-bottom: 20px;
         }
 
         .filter-tag {
-            background: rgba(0, 255, 0, 0.2);
-            border: 1px solid #00ff00;
-            padding: 5px 15px;
+            background: rgba(14, 165, 233, 0.1);
+            border: 1px solid rgba(14, 165, 233, 0.3);
+            padding: 8px 18px;
+            border-radius: 20px;
             cursor: pointer;
-            font-size: 12px;
-            transition: all 0.3s;
+            font-size: 13px;
+            transition: all 0.3s ease;
+            font-weight: 500;
         }
 
         .filter-tag:hover {
-            background: #00ff00;
-            color: #0a0a0a;
+            background: rgba(14, 165, 233, 0.2);
+            border-color: #0ea5e9;
+            transform: translateY(-2px);
         }
 
         .filter-tag.active {
-            background: #00ff00;
-            color: #0a0a0a;
+            background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+            border-color: transparent;
+            color: white;
+        }
+
+        .stats-summary {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .stats-summary h2 {
+            margin-bottom: 20px;
+            color: #e2e8f0;
+            font-size: 1.5rem;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+        }
+
+        .stat-item {
+            background: rgba(14, 165, 233, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(14, 165, 233, 0.2);
+            text-align: center;
+        }
+
+        .stat-label {
+            color: #94a3b8;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
+
+        .stat-value {
+            color: #0ea5e9;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .game-card {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 25px;
+            margin-bottom: 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .game-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 30px rgba(14, 165, 233, 0.2);
+            border-color: rgba(14, 165, 233, 0.3);
+        }
+
+        .game-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .game-id {
+            color: #0ea5e9;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .game-time {
+            color: #94a3b8;
+            font-size: 14px;
+        }
+
+        .game-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .info-item {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px 15px;
+            border-radius: 8px;
+        }
+
+        .info-label {
+            color: #94a3b8;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+
+        .info-value {
+            color: #e2e8f0;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .winner-crewmate {
+            color: #10b981 !important;
+        }
+
+        .winner-impostor {
+            color: #ef4444 !important;
+        }
+
+        .json-view {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(14, 165, 233, 0.3);
+            padding: 20px;
+            margin-top: 15px;
+            border-radius: 10px;
+            overflow-x: auto;
+            display: none;
+        }
+
+        .json-view pre {
+            margin: 0;
+            color: #0ea5e9;
+            font-size: 12px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .toggle-json {
+            background: rgba(14, 165, 233, 0.1);
+            border: 1px solid rgba(14, 165, 233, 0.3);
+            color: #0ea5e9;
+            padding: 8px 16px;
+            font-size: 12px;
+            margin-top: 10px;
+            border-radius: 6px;
+        }
+
+        .toggle-json:hover {
+            background: rgba(14, 165, 233, 0.2);
+            transform: none;
+            box-shadow: none;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 80px 20px;
+        }
+
+        .spinner {
+            border: 4px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #0ea5e9;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid #ef4444;
+            color: #fca5a5;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .game-info {
+                grid-template-columns: repeat(2, 1fr);
+            }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
-            <h1>⚡ AUSUMMARY - RAW DATA VIEWER ⚡</h1>
-            <p style="color: #00aa00;">All game statistics - Developer/Admin view</p>
+            <h1>🎮 AUSUMMARY</h1>
+            <p class="subtitle">All Games Database</p>
         </header>
 
         <div class="controls">
@@ -262,30 +338,35 @@
             <button onclick="populateTestData()">🧪 Add Test Data</button>
             <button onclick="exportJSON()">💾 Export JSON</button>
             <button onclick="clearFilters()">🗑️ Clear Filters</button>
-            <button onclick="window.location.href='/'">📊 Back to Dashboard</button>
-        </div>
-
-        <input type="text" class="search-box" id="searchBox" placeholder="Search by map, winner, or match ID...">
-
-        <div class="filter-tags">
-            <div class="filter-tag" data-filter="map:The Skeld">The Skeld</div>
-            <div class="filter-tag" data-filter="map:MIRA HQ">MIRA HQ</div>
-            <div class="filter-tag" data-filter="map:Polus">Polus</div>
-            <div class="filter-tag" data-filter="map:The Airship">The Airship</div>
-            <div class="filter-tag" data-filter="map:The Fungle">The Fungle</div>
-            <div class="filter-tag" data-filter="winner:Crewmate">Crewmate Wins</div>
-            <div class="filter-tag" data-filter="winner:Impostor">Impostor Wins</div>
+            <button onclick="window.location.href='/'">📊 Dashboard</button>
         </div>
 
         <div id="loading" class="loading">
-            <p>LOADING DATA...</p>
+            <div class="spinner"></div>
+            <p style="color: #94a3b8;">Loading games...</p>
         </div>
 
         <div id="error" class="error" style="display: none;"></div>
 
-        <div id="statsSummary" style="display: none;"></div>
-        
-        <div id="gamesContainer"></div>
+        <div id="content" style="display: none;">
+            <div class="search-filter-section">
+                <input type="text" class="search-box" id="searchBox" placeholder="🔍 Search by map, winner, or match ID...">
+                
+                <div class="filter-tags">
+                    <div class="filter-tag" data-filter="map:The Skeld">The Skeld</div>
+                    <div class="filter-tag" data-filter="map:MIRA HQ">MIRA HQ</div>
+                    <div class="filter-tag" data-filter="map:Polus">Polus</div>
+                    <div class="filter-tag" data-filter="map:The Airship">The Airship</div>
+                    <div class="filter-tag" data-filter="map:The Fungle">The Fungle</div>
+                    <div class="filter-tag" data-filter="winner:Crewmate">Crewmate Wins</div>
+                    <div class="filter-tag" data-filter="winner:Impostor">Impostor Wins</div>
+                </div>
+            </div>
+
+            <div id="statsSummary" style="display: none;"></div>
+            
+            <div id="gamesContainer"></div>
+        </div>
     </div>
 
     <script>
@@ -296,69 +377,67 @@
         async function loadGames() {
             document.getElementById('loading').style.display = 'block';
             document.getElementById('error').style.display = 'none';
+            document.getElementById('content').style.display = 'none';
 
             try {
-                const response = await fetch('/api/analytics');
+                const response = await fetch('/api/all-games');
                 const data = await response.json();
 
-                allGames = data.recentGames || [];
-                
-                // Try to get ALL games from a new endpoint
-                try {
-                    const allResponse = await fetch('/api/all-games');
-                    if (allResponse.ok) {
-                        const allData = await allResponse.json();
-                        allGames = allData.games || allGames;
-                    }
-                } catch {
-                    // Use recent games if all-games endpoint doesn't exist
-                }
-
+                allGames = data.games || [];
                 filteredGames = [...allGames];
                 
                 document.getElementById('loading').style.display = 'none';
-                displayStats(data);
+                document.getElementById('content').style.display = 'block';
+                
+                displayStats();
                 displayGames();
 
             } catch (error) {
                 document.getElementById('loading').style.display = 'none';
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('error').textContent = `ERROR: ${error.message}`;
+                document.getElementById('error').textContent = `Error: ${error.message}. Make sure you've visited /api/populate-test-data first!`;
                 console.error(error);
             }
         }
 
-        function displayStats(data) {
+        function displayStats() {
             const statsDiv = document.getElementById('statsSummary');
             statsDiv.style.display = 'block';
             
+            const totalGames = allGames.length;
+            const crewWins = allGames.filter(g => g.winningTeam === 'Crewmate').length;
+            const impWins = allGames.filter(g => g.winningTeam === 'Impostor').length;
+            const avgDuration = allGames.reduce((sum, g) => sum + (g.gameDuration || 0), 0) / (totalGames || 1);
+            const totalKills = allGames.reduce((sum, g) => sum + (g.totalKills || 0), 0);
+            const totalPlayers = allGames.reduce((sum, g) => sum + (g.playerCount || 0), 0);
+            
             statsDiv.innerHTML = `
                 <div class="stats-summary">
-                    <h2>📈 GLOBAL STATISTICS</h2>
+                    <h2>📈 Database Statistics</h2>
                     <div class="stat-grid">
                         <div class="stat-item">
-                            <div class="stat-label">TOTAL GAMES</div>
-                            <div class="stat-value">${data.totalGames || 0}</div>
+                            <div class="stat-label">Total Games</div>
+                            <div class="stat-value">${totalGames}</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">TOTAL PLAYERS</div>
-                            <div class="stat-value">${data.totalPlayers || 0}</div>
+                            <div class="stat-label">Total Players</div>
+                            <div class="stat-value">${totalPlayers}</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">CREWMATE WINS</div>
-                            <div class="stat-value">${((data.winRates?.crewmate || 0) * 100).toFixed(1)}%</div>
+                            <div class="stat-label">Crew Wins</div>
+                            <div class="stat-value">${((crewWins / totalGames) * 100).toFixed(0)}%</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">IMPOSTOR WINS</div>
-                            <div class="stat-value">${((data.winRates?.impostor || 0) * 100).toFixed(1)}%</div>
+                            <div class="stat-label">Imp Wins</div>
+                            <div class="stat-value">${((impWins / totalGames) * 100).toFixed(0)}%</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">AVG DURATION</div>
-                            <div class="stat-value">${Math.floor((data.averageGameDuration || 0) / 60)}m</div>
+                            <div class="stat-label">Avg Duration</div>
+                            <div class="stat-value">${Math.floor(avgDuration / 60)}m</div>
                         </div>
                         <div class="stat-item">
-                            <div class="stat-label">TOTAL KILLS</div>
-                            <div class="stat-value">${data.totalKills || 0}</div>
+                            <div class="stat-label">Total Kills</div>
+                            <div class="stat-value">${totalKills}</div>
                         </div>
                     </div>
                 </div>
@@ -369,7 +448,7 @@
             const container = document.getElementById('gamesContainer');
             
             if (filteredGames.length === 0) {
-                container.innerHTML = '<div class="loading">NO GAMES FOUND</div>';
+                container.innerHTML = '<div class="loading" style="display:block;"><p style="color: #94a3b8;">No games found. Try clearing filters or adding test data.</p></div>';
                 return;
             }
 
@@ -382,41 +461,41 @@
                     <div class="game-card">
                         <div class="game-header">
                             <div>
-                                <div class="game-id">GAME #${filteredGames.length - index}</div>
-                                <div class="game-id" style="font-size: 11px; color: #00aa00;">${game.matchId || 'N/A'}</div>
+                                <div class="game-id">Game #${filteredGames.length - index}</div>
+                                <div style="font-size: 11px; color: #64748b; margin-top: 5px;">${game.matchId || 'N/A'}</div>
                             </div>
                             <div class="game-time">${date.toLocaleString()}</div>
                         </div>
 
                         <div class="game-info">
                             <div class="info-item">
-                                <div class="info-label">MAP</div>
+                                <div class="info-label">Map</div>
                                 <div class="info-value">${game.mapName || 'Unknown'}</div>
                             </div>
                             <div class="info-item">
-                                <div class="info-label">PLAYERS</div>
+                                <div class="info-label">Players</div>
                                 <div class="info-value">${game.playerCount || 0}</div>
                             </div>
                             <div class="info-item">
-                                <div class="info-label">WINNER</div>
+                                <div class="info-label">Winner</div>
                                 <div class="info-value ${winnerClass}">${game.winningTeam || 'Unknown'}</div>
                             </div>
                             <div class="info-item">
-                                <div class="info-label">DURATION</div>
+                                <div class="info-label">Duration</div>
                                 <div class="info-value">${duration}m ${Math.floor(game.gameDuration % 60)}s</div>
                             </div>
                             <div class="info-item">
-                                <div class="info-label">KILLS</div>
+                                <div class="info-label">Kills</div>
                                 <div class="info-value">${game.totalKills || 0}</div>
                             </div>
                             <div class="info-item">
-                                <div class="info-label">TASKS</div>
+                                <div class="info-label">Tasks</div>
                                 <div class="info-value">${Math.round((game.taskCompletionRate || 0) * 100)}%</div>
                             </div>
                         </div>
 
                         <button class="toggle-json" onclick="toggleJSON(${index})">
-                            VIEW RAW JSON
+                            📄 View Raw JSON
                         </button>
                         <div class="json-view" id="json-${index}">
                             <pre>${JSON.stringify(game, null, 2)}</pre>
@@ -464,7 +543,6 @@
         function applyFilters() {
             let games = [...allGames];
 
-            // Apply filter tags
             Object.keys(activeFilters).forEach(key => {
                 const [type, value] = key.split(':');
                 games = games.filter(game => {
@@ -474,7 +552,6 @@
                 });
             });
 
-            // Apply search
             const searchTerm = document.getElementById('searchBox').value.toLowerCase();
             if (searchTerm) {
                 games = games.filter(game => 
@@ -488,7 +565,6 @@
             displayGames();
         }
 
-        // Event listeners
         document.getElementById('searchBox').addEventListener('input', applyFilters);
 
         document.querySelectorAll('.filter-tag').forEach(tag => {
@@ -507,7 +583,6 @@
             });
         });
 
-        // Load on page load
         loadGames();
     </script>
 </body>
