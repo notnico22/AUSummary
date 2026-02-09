@@ -128,28 +128,74 @@ public static class VercelStatsSender
                 {
                     Console.WriteLine($"Uploading game {i + 1}/{jsonFiles.Count}...");
                     
-                    // Read the raw JSON and inject userId without full deserialization
-                    var jsonText = await File.ReadAllTextAsync(file, cancellationToken);
+                    // CRITICAL: Wrap all file operations in try-catch to prevent GC errors
+                    string jsonText;
+                    string modifiedJson;
                     
-                    // Use JObject to add userId without deserializing the whole object
-                    var jObject = JObject.Parse(jsonText);
-                    jObject["userId"] = userId;
+                    try
+                    {
+                        // Read the raw JSON and inject userId without full deserialization
+                        jsonText = await File.ReadAllTextAsync(file, cancellationToken);
+                        
+                        // Use JObject to add userId and fix GameDuration format
+                        var jObject = JObject.Parse(jsonText);
+                        jObject["userId"] = userId;
+                        
+                        // CRITICAL FIX: Convert GameDuration from TimeSpan string to seconds
+                        // Old format: "00:13:27.0728997" -> New format: 807 (seconds as number)
+                        if (jObject["Metadata"]?["GameDuration"] != null)
+                        {
+                            var durationValue = jObject["Metadata"]["GameDuration"];
+                            if (durationValue.Type == JTokenType.String)
+                            {
+                                var durationString = durationValue.ToString();
+                                if (TimeSpan.TryParse(durationString, out var duration))
+                                {
+                                    jObject["Metadata"]["GameDuration"] = (int)duration.TotalSeconds;
+                                }
+                            }
+                        }
+                        
+                        modifiedJson = jObject.ToString(Formatting.None);
+                    }
+                    catch (Exception parseEx)
+                    {
+                        Console.WriteLine($"⚠️ Error parsing {Path.GetFileName(file)}: {parseEx.Message}");
+                        Console.WriteLine($"   Skipping this file - will retry later");
+                        continue; // Skip this file, continue with next one
+                    }
                     
-                    var modifiedJson = jObject.ToString(Formatting.None);
+                    // Try to upload - if it fails, file won't be renamed so it will retry later
+                    bool uploadSuccess = false;
+                    try
+                    {
+                        uploadSuccess = await SendRawJsonWithRetryAsync(modifiedJson, file, cancellationToken);
+                    }
+                    catch (Exception uploadEx)
+                    {
+                        Console.WriteLine($"⚠️ Error uploading {Path.GetFileName(file)}: {uploadEx.Message}");
+                        Console.WriteLine($"   File will be retried next time");
+                        uploadSuccess = false;
+                    }
                     
-                    if (await SendRawJsonWithRetryAsync(modifiedJson, file, cancellationToken))
+                    if (uploadSuccess)
                     {
                         successCount++;
                     }
+                    
+                    // Add small delay between files to prevent overwhelming the system
+                    await Task.Delay(500, cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
-                    Console.WriteLine("Upload cancelled");
+                    Console.WriteLine("Upload cancelled by user");
                     break;
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Error uploading {Path.GetFileName(file)}: {ex.Message}");
+                    Console.WriteLine($"⚠️ Unexpected error with {Path.GetFileName(file)}: {ex.Message}");
+                    Console.WriteLine($"   Continuing with next file...");
+                    // Continue to next file instead of crashing
                 }
             }
 
@@ -255,21 +301,47 @@ public static class VercelStatsSender
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"✗ Error sending stats (attempt {attempt}/{MaxRetries}): {ex.Message}");
+                    // Check if it's a GC error or other critical error
+                    var errorMsg = ex.Message.ToLower();
+                    var isGCError = errorMsg.Contains("gc") || errorMsg.Contains("garbage") || 
+                                   errorMsg.Contains("thread") || errorMsg.Contains("il2cpp");
                     
-                    if (attempt < MaxRetries && !cancellationToken.IsCancellationRequested)
+                    if (isGCError)
+                    {
+                        Console.WriteLine($"⚠️ GC/Threading error detected (attempt {attempt}/{MaxRetries}): {ex.Message}");
+                        Console.WriteLine($"   This file will be retried later to avoid crashes");
+                        // Don't retry GC errors - just fail gracefully and try again later
+                        return false;
+                    }
+                    else
+                    {
+                        Console.WriteLine($"✗ Error sending stats (attempt {attempt}/{MaxRetries}): {ex.Message}");
+                    }
+                    
+                    if (attempt < MaxRetries && !cancellationToken.IsCancellationRequested && !isGCError)
                     {
                         Console.WriteLine($"  Retrying in {RetryDelayMs}ms...");
                         await Task.Delay(RetryDelayMs, cancellationToken);
                     }
+                    else if (isGCError)
+                    {
+                        // Exit early on GC errors to prevent crashes
+                        break;
+                    }
                 }
             }
             
-            Console.WriteLine($"✗ Failed to upload after {MaxRetries} attempts");
+            Console.WriteLine($"✗ Failed to upload after {MaxRetries} attempts (file will retry later)");
             return false;
         }
         catch (OperationCanceledException)
         {
+            return false;
+        }
+        catch (Exception criticalEx)
+        {
+            Console.WriteLine($"⚠️ Critical error in upload process: {criticalEx.Message}");
+            Console.WriteLine($"   File will be retried later");
             return false;
         }
         finally

@@ -502,6 +502,10 @@
                         <div class="stat-value" id="totalGames">0</div>
                     </div>
                     <div class="stat-card">
+                        <div class="stat-label">Unique Players</div>
+                        <div class="stat-value" id="uniquePlayers">0</div>
+                    </div>
+                    <div class="stat-card">
                         <div class="stat-label">Total Players</div>
                         <div class="stat-value" id="totalPlayers">0</div>
                     </div>
@@ -524,6 +528,22 @@
                     <div class="stat-card">
                         <div class="stat-label">Total Kills</div>
                         <div class="stat-value" id="totalKills">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Meetings</div>
+                        <div class="stat-value" id="totalMeetings">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Bodies Reported</div>
+                        <div class="stat-value" id="totalBodiesReported">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Total Ejections</div>
+                        <div class="stat-value" id="totalEjections">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Task Completion</div>
+                        <div class="stat-value" id="taskCompletion">0%</div>
                     </div>
                 </div>
 
@@ -710,6 +730,7 @@
 
         function updateStats(data) {
             document.getElementById('totalGames').textContent = data.totalGames?.toLocaleString() || '0';
+            document.getElementById('uniquePlayers').textContent = data.uniquePlayers?.toLocaleString() || '0';
             document.getElementById('totalPlayers').textContent = data.totalPlayers?.toLocaleString() || '0';
             document.getElementById('crewWinRate').textContent = 
                 `${((data.winRates?.crewmate || 0) * 100).toFixed(1)}%`;
@@ -724,6 +745,11 @@
             document.getElementById('avgDuration').textContent = `${minutes}m ${seconds}s`;
             
             document.getElementById('totalKills').textContent = data.totalKills?.toLocaleString() || '0';
+            document.getElementById('totalMeetings').textContent = data.totalMeetings?.toLocaleString() || '0';
+            document.getElementById('totalBodiesReported').textContent = data.totalBodiesReported?.toLocaleString() || '0';
+            document.getElementById('totalEjections').textContent = data.totalEjections?.toLocaleString() || '0';
+            document.getElementById('taskCompletion').textContent = 
+                `${((data.taskCompletionRate || 0) * 100).toFixed(1)}%`;
         }
 
         function updateCharts(data) {
@@ -1092,6 +1118,23 @@
             }
         }
 
+        function parseDuration(gameDuration) {
+            // Handle both number (seconds) and TimeSpan string formats
+            if (typeof gameDuration === 'number') {
+                return gameDuration;
+            } else if (typeof gameDuration === 'string') {
+                // Parse TimeSpan format like "00:13:27.0728997"
+                const parts = gameDuration.split(':');
+                if (parts.length >= 3) {
+                    const hours = parseInt(parts[0]) || 0;
+                    const minutes = parseInt(parts[1]) || 0;
+                    const seconds = parseFloat(parts[2]) || 0;
+                    return (hours * 3600) + (minutes * 60) + seconds;
+                }
+            }
+            return 0;
+        }
+
         function filterAllGames() {
             const mapFilter = document.getElementById('mapFilterAllGames').value;
             const winnerFilter = document.getElementById('winnerFilterAllGames').value;
@@ -1120,9 +1163,9 @@
 
             tbody.innerHTML = filtered.map(game => {
                 const date = new Date(game.timestamp);
-                const gameDuration = game.metadata?.gameDuration || 0;
-                const minutes = Math.floor(gameDuration / 60);
-                const seconds = Math.floor(gameDuration % 60);
+                const durationSeconds = parseDuration(game.metadata?.gameDuration);
+                const minutes = Math.floor(durationSeconds / 60);
+                const seconds = Math.floor(durationSeconds % 60);
                 const winnerClass = game.winner?.winningTeam === 'Crewmate' ? 'badge-crewmate' : 
                                    game.winner?.winningTeam === 'Impostor' ? 'badge-impostor' : 
                                    'badge-neutral';
