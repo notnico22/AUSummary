@@ -87,7 +87,7 @@ public partial class AUSummaryPlugin : BasePlugin, IMiraPlugin
             {
                 Log.LogWarning("╔═══════════════════════════════════════════════════════╗");
                 Log.LogWarning("║           NEW VERSION AVAILABLE!                     ║");
-                Log.LogWarning($"║  Current: v{updateInfo.CurrentVersion,-20} New: v{updateInfo.LatestVersion,-20} ║");
+                Log.LogWarning($"║  Current: v{updateInfo.CurrentVersion} New: v{updateInfo.LatestVersion} ║");
                 Log.LogWarning($"║  Download: {updateInfo.DownloadUrl}");
                 Log.LogWarning("║                                                       ║");
                 Log.LogWarning("║  Please update to get the latest features & fixes!  ║");
@@ -114,10 +114,11 @@ public partial class AUSummaryPlugin : BasePlugin, IMiraPlugin
             // This will show when the player joins a lobby
             AddDelayedAction(() =>
             {
-                if (DestroyableSingleton<HudManager>.Instance != null)
+                if (DestroyableSingleton<HudManager>.Instance != null && DestroyableSingleton<HudManager>.Instance.Notifier != null)
                 {
-                    DestroyableSingleton<HudManager>.Instance.Notifier.AddItem(
-                        $"AUSUMMARY v{updateInfo.LatestVersion} is available! Please update.");
+                    // Use the correct API for adding notifications
+                    var notification = $"AUSUMMARY v{updateInfo.LatestVersion} is available! Please update.";
+                    DestroyableSingleton<HudManager>.Instance.Notifier.AddDisconnectMessage(notification);
                 }
             }, 5f);
         }

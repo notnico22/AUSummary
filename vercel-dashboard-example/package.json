@@ -7,9 +7,10 @@
     "build": "echo 'No build needed for API-only project'"
   },
   "dependencies": {
-    "@vercel/node": "^3.0.0"
+    "@vercel/kv": "^3.0.0",
+    "@vercel/node": "^4.0.0"
   },
   "devDependencies": {
-    "vercel": "latest"
+    "vercel": "^41.0.2"
   }
 }
