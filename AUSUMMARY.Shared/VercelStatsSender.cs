@@ -13,7 +13,7 @@ namespace AUSUMMARY.Shared;
 public static class VercelStatsSender
 {
     // TODO: Replace with your actual Vercel endpoint URL
-    private const string VercelEndpoint = "https://your-vercel-app.vercel.app/api/stats";
+    private const string VercelEndpoint = "https://ausummary.vercel.app/api/stats";
     
     private static readonly HttpClient _httpClient = new();
 
