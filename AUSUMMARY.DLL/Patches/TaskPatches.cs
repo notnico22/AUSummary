@@ -26,9 +26,10 @@ public static class TaskPatches
 
     /// <summary>
     /// Patch for when a task is marked as complete - FIXED for multi-part + Better logging
+    /// CRITICAL: Must use Postfix so task is actually complete when we check it
     /// </summary>
     [HarmonyPatch(typeof(GameData), nameof(GameData.CompleteTask))]
-    [HarmonyPrefix]
+    [HarmonyPostfix]
     public static void OnGameDataTaskComplete(GameData __instance, [HarmonyArgument(0)] PlayerControl pc, [HarmonyArgument(1)] uint taskId)
     {
         try
@@ -72,26 +73,27 @@ public static class TaskPatches
                 return;
             }
 
-            // Only count the task if it's fully complete (not just one part)
-            // Multi-part tasks: Only count when IsComplete is true
-            if (!foundTask.IsComplete)
-            {
-                AUSummaryPlugin.Instance.Log.LogInfo($"[TASK PART] {pc.Data.PlayerName} completed part of {foundTask.TaskType} (not fully complete yet)");
-                return;
-            }
-
-            // Check if we've already counted this task
+            // CRITICAL FIX: Check if we've already counted this task FIRST
+            // This prevents double-counting if CompleteTask is called multiple times
             if (_completedTasks.Contains(taskId))
             {
                 AUSummaryPlugin.Instance.Log.LogInfo($"[TASK ALREADY COUNTED] {pc.Data.PlayerName}'s {foundTask.TaskType} already recorded");
                 return;
             }
 
-            // Mark as counted
+            // CRITICAL: Now that we're in Postfix, the task SHOULD be complete
+            // But check just to be safe
+            if (!foundTask.IsComplete)
+            {
+                AUSummaryPlugin.Instance.Log.LogInfo($"[TASK PART] {pc.Data.PlayerName} completed part of {foundTask.TaskType} (not fully complete yet)");
+                return;
+            }
+
+            // Task is complete and not counted yet - count it!
             _completedTasks.Add(taskId);
             _taskCounter++;
             
-            AUSummaryPlugin.Instance.Log.LogWarning($"✅ [TASK #{_taskCounter}] {pc.Data.PlayerName} completed {foundTask.TaskType}");
+            AUSummaryPlugin.Instance.Log.LogWarning($"✅ TASK COMPLETE #{_taskCounter}: {pc.Data.PlayerName} finished {foundTask.TaskType} (Task ID: {taskId})");
             GameTracker.RecordTaskComplete(pc.PlayerId);
         }
         catch (Exception ex)
@@ -101,7 +103,8 @@ public static class TaskPatches
     }
 
     /// <summary>
-    /// Alternative patch that checks task completion properly
+    /// Alternative patch that checks task completion at the source
+    /// This catches when PlayerTask.Complete is called directly
     /// </summary>
     [HarmonyPatch(typeof(PlayerTask), nameof(PlayerTask.Complete))]
     [HarmonyPostfix]
@@ -114,16 +117,25 @@ public static class TaskPatches
             var owner = __instance.Owner;
             if (owner == null || owner.Data == null) return;
 
-            // Only log when task becomes complete
-            if (__instance.IsComplete)
+            // IMPORTANT: Check if player is impostor or dead
+            if (owner.Data.Role != null && owner.Data.Role.IsImpostor)
             {
-                // Check if already counted
-                if (_completedTasks.Contains(__instance.Id))
-                {
-                    return; // Already counted
-                }
+                return; // Impostor fake task
+            }
 
-                AUSummaryPlugin.Instance.Log.LogInfo($"[TASK COMPLETE POSTFIX] {owner.Data.PlayerName} completed {__instance.TaskType}");
+            if (owner.Data.IsDead)
+            {
+                return; // Dead players don't count
+            }
+
+            // Only count when task becomes complete AND hasn't been counted yet
+            if (__instance.IsComplete && !_completedTasks.Contains(__instance.Id))
+            {
+                _completedTasks.Add(__instance.Id);
+                _taskCounter++;
+                
+                AUSummaryPlugin.Instance.Log.LogWarning($"✅ TASK COMPLETE (PlayerTask patch) #{_taskCounter}: {owner.Data.PlayerName} finished {__instance.TaskType}");
+                GameTracker.RecordTaskComplete(owner.PlayerId);
             }
         }
         catch (Exception ex)
