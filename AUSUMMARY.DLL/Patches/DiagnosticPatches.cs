@@ -38,16 +38,20 @@ public static class DiagnosticPatches
         AUSummaryPlugin.Instance.Log.LogWarning($"🔪 DIAGNOSTIC: MURDER PATCH FIRED! {__instance?.Data?.PlayerName} killing {target?.Data?.PlayerName}");
     }
 
-    /// <summary>
-    /// Test if we can patch CompleteTask - FIXED SIGNATURE
-    /// </summary>
-    [HarmonyPatch(typeof(GameData), nameof(GameData.CompleteTask))]
-    [HarmonyPrefix]
-    public static void TestTaskPatch([HarmonyArgument(0)] PlayerControl pc)
-    {
-        if (pc != null && pc.Data != null)
-        {
-            AUSummaryPlugin.Instance.Log.LogWarning($"✅ DIAGNOSTIC: TASK PATCH FIRED! {pc.Data.PlayerName} completed a task!");
-        }
-    }
+    // DISABLED: This diagnostic patch was interfering with the real task tracking
+    // The message "DIAGNOSTIC: TASK PATCH FIRED!" followed by "[TASK PART]" was confusing
+    // Real task tracking is in TaskPatches.cs
+    
+    // /// <summary>
+    // /// Test if we can patch CompleteTask - FIXED SIGNATURE
+    // /// </summary>
+    // [HarmonyPatch(typeof(GameData), nameof(GameData.CompleteTask))]
+    // [HarmonyPrefix]
+    // public static void TestTaskPatch([HarmonyArgument(0)] PlayerControl pc)
+    // {
+    //     if (pc != null && pc.Data != null)
+    //     {
+    //         AUSummaryPlugin.Instance.Log.LogWarning($"✅ DIAGNOSTIC: TASK PATCH FIRED! {pc.Data.PlayerName} completed a task!");
+    //     }
+    // }
 }
