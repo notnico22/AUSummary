@@ -394,18 +394,30 @@ public static class GameTracker
             _currentGame.Metadata.TotalMeetings = _currentGame.Events
                 .Count(e => e.EventType == "MeetingCalled" || e.EventType == "BodyReported");
 
-            // Count tasks
+            // CRITICAL FIX: Only count tasks for players who can ACTUALLY complete tasks
+            // Impostors have fake tasks that don't contribute to the task bar
+            // Only count tasks for Crewmates and roles that can do tasks
             int totalTasks = 0;
             int completedTasks = 0;
 
             foreach (var player in _currentGame.Players)
             {
+                // Skip impostors - they have fake tasks that don't count
+                if (player.Team == "Impostor")
+                {
+                    DebugLog($"Skipping tasks for {player.PlayerName} (Impostor)");
+                    continue;
+                }
+                
+                // Only count crewmate tasks (and neutral roles that can do tasks)
                 totalTasks += player.TotalTasks;
                 completedTasks += player.TasksCompleted;
             }
 
             _currentGame.Metadata.TotalTasks = totalTasks;
             _currentGame.Metadata.CompletedTasks = completedTasks;
+            
+            DebugLog($"Task count: {completedTasks}/{totalTasks} (excluding impostor fake tasks)");
         }
         catch (Exception ex)
         {
