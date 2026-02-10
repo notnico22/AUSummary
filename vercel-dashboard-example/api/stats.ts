@@ -144,6 +144,39 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await gamesCollection.createIndex({ userId: 1 });
     await gamesCollection.createIndex({ 'players.playerName': 1 });
 
+    // CRITICAL: Check for duplicate games before inserting
+    // Multiple people might upload the same game
+    const gameTimestamp = new Date(gameData.timestamp);
+    const threeMinutesBefore = new Date(gameTimestamp.getTime() - 3 * 60 * 1000);
+    const threeMinutesAfter = new Date(gameTimestamp.getTime() + 3 * 60 * 1000);
+
+    // Find potential duplicates: same time window, map, player count, winner
+    const potentialDuplicates = await gamesCollection.find({
+      matchId: { $ne: gameData.matchId }, // Different matchId
+      timestamp: { $gte: threeMinutesBefore, $lte: threeMinutesAfter },
+      'metadata.mapName': gameData.metadata.mapName,
+      'metadata.playerCount': gameData.metadata.playerCount,
+      'winner.winningTeam': gameData.winner.winningTeam,
+      'statistics.totalKills': gameData.statistics.totalKills,
+      'statistics.totalDeaths': gameData.statistics.totalDeaths
+    }).toArray();
+
+    if (potentialDuplicates.length > 0) {
+      console.log(`⚠️ Found ${potentialDuplicates.length} potential duplicate(s) for game ${gameData.matchId}`);
+      
+      // Keep the one that was uploaded first, reject this one
+      const firstDuplicate = potentialDuplicates[0];
+      console.log(`   Keeping existing game ${firstDuplicate.matchId}, rejecting duplicate`);
+      
+      return res.status(200).json({ 
+        success: true,
+        message: 'Duplicate game detected - already in database',
+        matchId: gameData.matchId,
+        duplicate: true,
+        existingMatchId: firstDuplicate.matchId
+      });
+    }
+
     // Insert or update the complete game data
     const result = await gamesCollection.updateOne(
       { matchId: gameData.matchId },

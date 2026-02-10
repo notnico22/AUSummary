@@ -124,3 +124,7 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
+
+# Vercel dashboard (don't push to public GitHub)
+vercel-dashboard-example/
+.vercel/

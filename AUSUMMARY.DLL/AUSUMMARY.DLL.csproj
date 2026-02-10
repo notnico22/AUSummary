@@ -10,8 +10,8 @@
 
   <PropertyGroup>
     <Description>Among Us Game Summary Logger - DLL Mod</Description>
-    <Version>1.0.0</Version>
-    <Authors>AU Modding Community</Authors>
+    <Version>2.0.0</Version>
+    <Authors>Ninja</Authors>
   </PropertyGroup>
 
   <ItemGroup>

@@ -143,15 +143,17 @@ public static class VercelStatsSender
                         
                         // CRITICAL FIX: Convert GameDuration from TimeSpan string to seconds
                         // Old format: "00:13:27.0728997" -> New format: 807 (seconds as number)
-                        if (jObject["Metadata"]?["GameDuration"] != null)
+                        var metadataToken = jObject["Metadata"];
+                        if (metadataToken != null && metadataToken.Type == JTokenType.Object)
                         {
-                            var durationValue = jObject["Metadata"]["GameDuration"];
-                            if (durationValue.Type == JTokenType.String)
+                            var metadata = (JObject)metadataToken;
+                            var durationToken = metadata["GameDuration"];
+                            if (durationToken != null && durationToken.Type == JTokenType.String)
                             {
-                                var durationString = durationValue.ToString();
+                                var durationString = durationToken.ToString();
                                 if (TimeSpan.TryParse(durationString, out var duration))
                                 {
-                                    jObject["Metadata"]["GameDuration"] = (int)duration.TotalSeconds;
+                                    metadata["GameDuration"] = (int)duration.TotalSeconds;
                                 }
                             }
                         }

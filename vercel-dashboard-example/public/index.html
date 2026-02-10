@@ -467,6 +467,117 @@
             color: #94a3b8;
             font-size: 0.9rem;
         }
+
+        /* Game Detail Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            overflow-y: auto;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .modal-content {
+            background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+            padding: 40px;
+            border-radius: 20px;
+            max-width: 1200px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-title {
+            font-size: 2rem;
+            background: linear-gradient(135deg, #0ea5e9 0%, #8b5cf6 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .close-modal {
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            font-size: 2rem;
+            cursor: pointer;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .close-modal:hover {
+            background: rgba(239, 68, 68, 0.3);
+            transform: rotate(90deg);
+        }
+
+        .modal-section {
+            margin-bottom: 30px;
+        }
+
+        .modal-section h3 {
+            color: #0ea5e9;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+
+        .players-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .player-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .player-card.dead {
+            opacity: 0.6;
+            border-color: #ef4444;
+        }
+
+        .event-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .event-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 3px solid #0ea5e9;
+        }
     </style>
 </head>
 <body>
@@ -669,6 +780,19 @@
                         </tr>
                     </tbody>
                 </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Detail Modal -->
+    <div id="gameDetailModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Game Details</h2>
+                <button class="close-modal" onclick="closeGameDetail()">&times;</button>
+            </div>
+            <div id="gameDetailContent">
+                <!-- Content will be dynamically inserted -->
             </div>
         </div>
     </div>
@@ -1171,7 +1295,7 @@
                                    'badge-neutral';
                 
                 return `
-                    <tr>
+                    <tr onclick="showGameDetail('${game.matchId}')" style="cursor: pointer;">
                         <td>${date.toLocaleDateString()} ${date.toLocaleTimeString()}</td>
                         <td>${game.metadata?.mapName || 'Unknown'}</td>
                         <td>${game.metadata?.gameMode || 'Classic'}</td>
@@ -1184,6 +1308,167 @@
                 `;
             }).join('');
         }
+
+        function showGameDetail(matchId) {
+            const game = allGamesData.find(g => g.matchId === matchId);
+            if (!game) {
+                alert('Game not found');
+                return;
+            }
+
+            const modal = document.getElementById('gameDetailModal');
+            const content = document.getElementById('gameDetailContent');
+
+            const date = new Date(game.timestamp);
+            const durationSeconds = parseDuration(game.metadata?.gameDuration);
+            const minutes = Math.floor(durationSeconds / 60);
+            const seconds = Math.floor(durationSeconds % 60);
+
+            const winnerClass = game.winner?.winningTeam === 'Crewmate' ? 'badge-crewmate' : 
+                               game.winner?.winningTeam === 'Impostor' ? 'badge-impostor' : 
+                               'badge-neutral';
+
+            content.innerHTML = `
+                <div class="modal-section">
+                    <h3>📋 Game Information</h3>
+                    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                        <div class="stat-card">
+                            <div class="stat-label">Date</div>
+                            <div class="stat-value" style="font-size: 1.2rem;">${date.toLocaleDateString()}</div>
+                            <div class="stat-label">${date.toLocaleTimeString()}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Map</div>
+                            <div class="stat-value" style="font-size: 1.5rem;">${game.metadata?.mapName || 'Unknown'}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Duration</div>
+                            <div class="stat-value" style="font-size: 1.5rem;">${minutes}m ${seconds}s</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Players</div>
+                            <div class="stat-value" style="font-size: 1.5rem;">${game.metadata?.playerCount || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Winner</div>
+                            <div style="margin-top: 10px;"><span class="badge ${winnerClass}" style="font-size: 1.2rem; padding: 8px 16px;">${game.winner?.winningTeam || 'Unknown'}</span></div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Win Condition</div>
+                            <div class="stat-value" style="font-size: 1.2rem;">${game.winner?.winCondition || 'N/A'}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h3>👥 Players (${game.players?.length || 0})</h3>
+                    <div class="players-grid">
+                        ${(game.players || []).map(player => {
+                            const teamClass = player.team === 'Crewmate' ? 'badge-crewmate' : 
+                                             player.team === 'Impostor' ? 'badge-impostor' : 
+                                             'badge-neutral';
+                            return `
+                                <div class="player-card ${player.isAlive ? '' : 'dead'}">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                        <strong style="color: #0ea5e9;">${player.playerName}</strong>
+                                        <span class="badge ${player.isAlive ? 'badge-alive' : 'badge-dead'}">
+                                            ${player.isAlive ? '✓ Alive' : '✗ Dead'}
+                                        </span>
+                                    </div>
+                                    <div style="margin-bottom: 5px;">
+                                        <span class="badge ${teamClass}">${player.role}</span>
+                                    </div>
+                                    <div style="color: #94a3b8; font-size: 0.9rem;">
+                                        <div>Color: ${player.colorName}</div>
+                                        <div>Kills: ${player.killCount || 0}</div>
+                                        <div>Tasks: ${player.tasksCompleted || 0}/${player.totalTasks || 0}</div>
+                                        ${!player.isAlive ? `<div style="color: #ef4444;">Death: ${player.deathCause || 'Unknown'}</div>` : ''}
+                                        ${player.killedBy ? `<div>Killed by: ${player.killedBy}</div>` : ''}
+                                    </div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h3>📊 Game Statistics</h3>
+                    <div class="stats-grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));">
+                        <div class="stat-card">
+                            <div class="stat-label">Total Kills</div>
+                            <div class="stat-value">${game.statistics?.totalKills || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Total Deaths</div>
+                            <div class="stat-value">${game.statistics?.totalDeaths || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Ejections</div>
+                            <div class="stat-value">${game.statistics?.totalEjections || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Meetings</div>
+                            <div class="stat-value">${game.metadata?.totalMeetings || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Tasks Done</div>
+                            <div class="stat-value">${game.metadata?.completedTasks || 0}/${game.metadata?.totalTasks || 0}</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-label">Task Rate</div>
+                            <div class="stat-value">${Math.round((game.statistics?.taskCompletionRate || 0) * 100)}%</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h3>📜 Events Timeline (${game.events?.length || 0})</h3>
+                    <div class="event-list">
+                        ${(game.events || []).map(event => {
+                            const eventMinutes = Math.floor(event.timestamp / 60);
+                            const eventSeconds = Math.floor(event.timestamp % 60);
+                            return `
+                                <div class="event-item">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                        <strong style="color: #0ea5e9;">${event.eventType}</strong>
+                                        <span style="color: #94a3b8;">${eventMinutes}:${eventSeconds.toString().padStart(2, '0')}</span>
+                                    </div>
+                                    <div style="color: #e2e8f0;">${event.description}</div>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                </div>
+
+                <div class="modal-section">
+                    <h3>🏆 Winners</h3>
+                    <div style="background: rgba(255, 255, 255, 0.05); padding: 20px; border-radius: 10px;">
+                        <div style="margin-bottom: 10px; font-size: 1.2rem;">
+                            <span class="badge ${winnerClass}" style="font-size: 1.1rem; padding: 10px 20px;">
+                                ${game.winner?.winningTeam || 'Unknown'} Victory
+                            </span>
+                        </div>
+                        <div style="color: #94a3b8; margin-bottom: 10px;">Condition: ${game.winner?.winCondition || 'N/A'}</div>
+                        <div style="color: #e2e8f0;">
+                            Winners: ${(game.winner?.winners || []).join(', ') || 'None'}
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            modal.classList.add('active');
+        }
+
+        function closeGameDetail() {
+            document.getElementById('gameDetailModal').classList.remove('active');
+        }
+
+        // Close modal when clicking outside
+        document.getElementById('gameDetailModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeGameDetail();
+            }
+        });
 
         // Load overview data on page load
         loadOverviewData();

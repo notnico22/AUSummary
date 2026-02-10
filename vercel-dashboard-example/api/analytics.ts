@@ -112,12 +112,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         totalBodiesReported += bodiesReported;
       }
       
-      // Track unique players
+      // Track unique players by userId (more accurate than name)
+      // Each game has a userId field representing who uploaded it
+      if (game.userId) {
+        uniquePlayerIds.add(game.userId);
+      }
+      
+      // Also track unique player names for display purposes
       if (game.players && Array.isArray(game.players)) {
         game.players.forEach((player: any) => {
-          if (player.playerId !== undefined && player.playerId !== null) {
-            uniquePlayerIds.add(`${player.playerId}`);
-          }
           if (player.playerName) {
             uniquePlayerNames.add(player.playerName.toLowerCase().trim());
           }
