@@ -63,6 +63,39 @@ public static class GameTracker
                 .Where(p => p.Team == winningTeam)
                 .Select(p => p.PlayerName)
                 .ToList();
+            
+            // CRITICAL FIX: Correct player alive status based on actual game state
+            // Check the actual PlayerControl to see who is really alive
+            try
+            {
+                var allPlayers = PlayerControl.AllPlayerControls.ToArray();
+                foreach (var player in _currentGame.Players)
+                {
+                    var playerControl = allPlayers.FirstOrDefault(p => p.PlayerId == player.PlayerId);
+                    if (playerControl != null)
+                    {
+                        // Get the ACTUAL alive status from the game
+                        var actuallyAlive = !playerControl.Data?.IsDead ?? true;
+                        
+                        // Update our tracking to match reality
+                        if (actuallyAlive)
+                        {
+                            player.IsAlive = true;
+                            player.TimeOfDeath = null;
+                            player.DeathCause = null;
+                        }
+                        else if (!player.IsAlive && string.IsNullOrEmpty(player.DeathCause))
+                        {
+                            // Player is dead but we don't know why
+                            player.DeathCause = "Unknown";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _log?.LogWarning($"Could not verify player alive status: {ex.Message}");
+            }
 
             // Calculate final statistics
             CalculateFinalStatistics();
@@ -148,6 +181,38 @@ public static class GameTracker
 
             // Determine winner
             DetermineWinner(endReason);
+            
+            // CRITICAL FIX: Verify player alive status from actual game state
+            try
+            {
+                var allPlayers = PlayerControl.AllPlayerControls.ToArray();
+                foreach (var player in _currentGame.Players)
+                {
+                    var playerControl = allPlayers.FirstOrDefault(p => p.PlayerId == player.PlayerId);
+                    if (playerControl != null)
+                    {
+                        // Get the ACTUAL alive status from the game
+                        var actuallyAlive = !playerControl.Data?.IsDead ?? true;
+                        
+                        // Update our tracking to match reality
+                        if (actuallyAlive)
+                        {
+                            player.IsAlive = true;
+                            player.TimeOfDeath = null;
+                            player.DeathCause = null;
+                        }
+                        else if (!player.IsAlive && string.IsNullOrEmpty(player.DeathCause))
+                        {
+                            // Player is dead but we don't know why
+                            player.DeathCause = "Unknown";
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _log?.LogWarning($"Could not verify player alive status: {ex.Message}");
+            }
 
             // Calculate final statistics
             CalculateFinalStatistics();
@@ -479,19 +544,29 @@ public static class GameTracker
     {
         try
         {
-            foreach (var player in _currentGame.Players.Where(p => p.Team == losingTeam && p.IsAlive))
+            // CRITICAL FIX: Only mark players as dead if they're actually on the LOSING team
+            // Winners who survived should stay alive
+            // Only players who were already dead or are on losing team should be marked
+            
+            foreach (var player in _currentGame.Players.Where(p => p.Team == losingTeam))
             {
-                player.IsAlive = false;
-                if (player.TimeOfDeath == 0)
+                // If player is already alive and on losing team, they probably survived
+                // Don't mark them as dead with "GameEnd" - they might be winners!
+                // Only mark as dead if they don't have a TimeOfDeath (never died during game)
+                if (player.IsAlive && player.TimeOfDeath == null)
                 {
-                    player.TimeOfDeath = GetGameTime();
+                    // This player survived the whole game on the losing team
+                    // They should stay alive - don't mark as dead
+                    continue;
                 }
-                if (string.IsNullOrEmpty(player.DeathCause))
+                
+                // If player has no death cause but is dead, mark it as GameEnd
+                if (!player.IsAlive && string.IsNullOrEmpty(player.DeathCause))
                 {
                     player.DeathCause = "GameEnd";
                 }
             }
-            DebugLog($"Marked {losingTeam} team as dead");
+            DebugLog($"Processed {losingTeam} team end-of-game status");
         }
         catch (Exception ex)
         {
