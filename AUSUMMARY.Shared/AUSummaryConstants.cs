@@ -10,7 +10,7 @@ public static class AUSummaryConstants
     public const string Version = "1.1.0";
 
 
-    public const string SummaryFolderName = "AmongUsGameSummaries";
+    public const string SummaryFolderName = "AUSUMMARYNewSummarys";
 
 
     public const string SummaryFileExtension = ".json";

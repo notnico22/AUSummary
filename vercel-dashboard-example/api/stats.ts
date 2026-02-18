@@ -144,36 +144,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     await gamesCollection.createIndex({ userId: 1 });
     await gamesCollection.createIndex({ 'players.playerName': 1 });
 
-    // CRITICAL: Check for duplicate games before inserting
-    // Multiple people might upload the same game
+    // CRITICAL: Duplicate prevention - only allow 1 game per (matchId + timestamp within 5 min)
+    // Uses game code (MatchId) and timestamp to prevent duplicates from retries or multiple players
     const gameTimestamp = new Date(gameData.timestamp);
-    const threeMinutesBefore = new Date(gameTimestamp.getTime() - 3 * 60 * 1000);
-    const threeMinutesAfter = new Date(gameTimestamp.getTime() + 3 * 60 * 1000);
+    const fiveMinutesBefore = new Date(gameTimestamp.getTime() - 5 * 60 * 1000);
+    const fiveMinutesAfter = new Date(gameTimestamp.getTime() + 5 * 60 * 1000);
 
-    // Find potential duplicates: same time window, map, player count, winner
-    const potentialDuplicates = await gamesCollection.find({
-      matchId: { $ne: gameData.matchId }, // Different matchId
-      timestamp: { $gte: threeMinutesBefore, $lte: threeMinutesAfter },
-      'metadata.mapName': gameData.metadata.mapName,
-      'metadata.playerCount': gameData.metadata.playerCount,
-      'winner.winningTeam': gameData.winner.winningTeam,
-      'statistics.totalKills': gameData.statistics.totalKills,
-      'statistics.totalDeaths': gameData.statistics.totalDeaths
-    }).toArray();
-
-    if (potentialDuplicates.length > 0) {
-      console.log(`⚠️ Found ${potentialDuplicates.length} potential duplicate(s) for game ${gameData.matchId}`);
-      
-      // Keep the one that was uploaded first, reject this one
-      const firstDuplicate = potentialDuplicates[0];
-      console.log(`   Keeping existing game ${firstDuplicate.matchId}, rejecting duplicate`);
-      
+    // Check 1: Same MatchId already exists (retry, reconnect, etc.) → duplicate
+    const exactDuplicate = await gamesCollection.findOne({ matchId: gameData.matchId });
+    if (exactDuplicate) {
+      console.log(`⚠️ Exact duplicate: game ${gameData.matchId} already in database`);
       return res.status(200).json({ 
         success: true,
         message: 'Duplicate game detected - already in database',
         matchId: gameData.matchId,
         duplicate: true,
-        existingMatchId: firstDuplicate.matchId
+        reason: 'exact_match'
+      });
+    }
+
+    // Check 2: Different MatchId but same logical game (timestamp within 5 min, same map/counts)
+    // Multiple players in same lobby may upload with different client-generated MatchIds
+    const hasEnoughData = gameData.metadata?.mapName != null && gameData.metadata?.playerCount != null;
+    let potentialDuplicates: Array<{ matchId: string }> = [];
+
+    if (hasEnoughData) {
+      const duplicateQuery: Record<string, unknown> = {
+        matchId: { $ne: gameData.matchId },
+        timestamp: { $gte: fiveMinutesBefore, $lte: fiveMinutesAfter },
+        'metadata.mapName': gameData.metadata.mapName,
+        'metadata.playerCount': gameData.metadata.playerCount,
+      };
+      if (gameData.winner?.winningTeam != null) duplicateQuery['winner.winningTeam'] = gameData.winner.winningTeam;
+      if (gameData.statistics?.totalKills != null) duplicateQuery['statistics.totalKills'] = gameData.statistics.totalKills;
+      if (gameData.statistics?.totalDeaths != null) duplicateQuery['statistics.totalDeaths'] = gameData.statistics.totalDeaths;
+
+      potentialDuplicates = await gamesCollection.find(duplicateQuery).limit(1).toArray();
+    }
+
+    if (potentialDuplicates.length > 0) {
+      const existingGame = potentialDuplicates[0];
+      console.log(`⚠️ Duplicate within 5 min: game ${gameData.matchId} matches existing ${existingGame.matchId}`);
+      return res.status(200).json({ 
+        success: true,
+        message: 'Duplicate game detected - same game already uploaded within 5 minutes',
+        matchId: gameData.matchId,
+        duplicate: true,
+        reason: 'timestamp_window',
+        existingMatchId: existingGame.matchId
       });
     }
 
